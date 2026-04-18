@@ -1,0 +1,16 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]
+      - generic [ref=e12]: Menú
+      - button "Gastos" [ref=e13] [cursor=pointer]
+      - button "Flujo de Caja" [ref=e19] [cursor=pointer]
+      - generic [ref=e24]
+  - main [ref=e48]:
+    - generic [ref=e50]:
+      - generic [ref=e51]
+      - button "Reiniciar mes" [ref=e66] [cursor=pointer]
+      - generic [ref=e67]
+      - generic [ref=e108]
+      - generic [ref=e285]
+      - generic [ref=e422]
