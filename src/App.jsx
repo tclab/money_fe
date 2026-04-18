@@ -4,7 +4,7 @@ import {
   Plus, Trash2, ChevronLeft, ChevronRight, ChevronDown, Cloud, CloudOff,
   GripVertical, LayoutList, TrendingUp, Download, Upload,
   Camera, Globe, Moon, Sun, CheckCircle2, XCircle, Clock, AlertCircle,
-  Menu, X, Wallet, BookOpen, Users, Target,
+  Menu, X, Wallet, BookOpen, Users, Target, Settings,
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
@@ -1080,6 +1080,8 @@ function Ledger() {
   const isCurrentMonth = viewKey === toMonthKey(today);
   const expenses = allMonths[viewKey] || null;
 
+  const createCurrentMonth = () => { setAllMonths((p) => ({ ...p, [toMonthKey(today)]: freshMonth() })); setViewDate(new Date(today)); };
+
   const updateExpense = (cat, id, patch) => {
     setAllMonths((p) => ({
       ...p,
@@ -1108,7 +1110,14 @@ function Ledger() {
     <div className="animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
       {!expenses && (
         <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl">
-          <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("empty.noSavedData")}</p>
+          <button ref={brandRef} onClick={openPicker}
+            className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none mx-auto mb-4">
+            {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
+            <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
+          </button>
+          {isCurrentMonth
+            ? <><p className="text-slate-500 dark:text-zinc-400 mb-4 text-sm">{t("empty.noDataMonth")}</p><Btn variant="primary" size="md" onClick={createCurrentMonth}>{t("btn.createMonth")}</Btn></>
+            : <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("empty.noSavedData")}</p>}
         </div>
       )}
 
@@ -1272,7 +1281,31 @@ function StatBadge({ label, value, color, big, locale, currency }) {
   );
 }
 
-function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, onRm, onAdd, locale, currency }) {
+function SplitterAmountInput({ value, onChange, locale, currency }) {
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState("");
+  return editing ? (
+    <input
+      type="number"
+      value={raw}
+      autoFocus
+      onChange={(e) => setRaw(e.target.value)}
+      onBlur={() => { onChange(parseFloat(raw) || 0); setEditing(false); }}
+      onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+      className="w-24 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 text-right font-mono"
+    />
+  ) : (
+    <input
+      readOnly
+      value={value === 0 ? "" : fmt(value, locale, currency)}
+      onFocus={() => { setRaw(value === 0 ? "" : String(value)); setEditing(true); }}
+      placeholder="0"
+      className="w-24 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 text-right font-mono cursor-text"
+    />
+  );
+}
+
+function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, onRm, onAdd, locale, currency, t }) {
   return (
     <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-xl p-3 flex flex-col gap-2">
       <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-zinc-800">
@@ -1287,11 +1320,11 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, 
               onChange={(e) => onUpd(i, labelKey, e.target.value)}
               className="flex-1 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 min-w-0"
             />
-            <input
-              type="number"
+            <SplitterAmountInput
               value={r[valueKey]}
-              onChange={(e) => onUpd(i, valueKey, +e.target.value || 0)}
-              className="w-24 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 text-right font-mono"
+              onChange={(v) => onUpd(i, valueKey, v)}
+              locale={locale}
+              currency={currency}
             />
             <button onClick={() => onRm(i)} className="text-slate-300 dark:text-zinc-600 hover:text-rose-500 transition p-1">
               <Trash2 size={12} />
@@ -1299,7 +1332,7 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, 
           </div>
         ))}
         <button onClick={onAdd} className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center">
-          <Plus size={11} /> Agregar
+          <Plus size={11} /> {t("splitter.addRow")}
         </button>
       </div>
     </div>
@@ -1307,7 +1340,7 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, 
 }
 
 function Splitter() {
-  const { locale, currency } = useI18n();
+  const { t, locale, currency, lang } = useI18n();
   const today = new Date();
   const monthKey = toMonthKey(today);
 
@@ -1338,8 +1371,8 @@ function Splitter() {
           setPeople(JSON.parse(res.value));
         } else {
           setPeople([
-            { id: "p1", name: "Persona 1", color: SPLITTER_COLORS[0], share: 50 },
-            { id: "p2", name: "Persona 2", color: SPLITTER_COLORS[1], share: 50 },
+            { id: "p1", name: t("splitter.person1"), color: SPLITTER_COLORS[0], share: 50 },
+            { id: "p2", name: t("splitter.person2"), color: SPLITTER_COLORS[1], share: 50 },
           ]);
         }
       } catch {}
@@ -1376,108 +1409,112 @@ function Splitter() {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-7xl mx-auto">
-      <div className="flex flex-wrap justify-between items-end gap-4">
+    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
         <div>
-          <div className="text-[10px] font-mono font-semibold tracking-widest text-slate-400 dark:text-zinc-600 uppercase">{fmtMonth(today)} · Tablero</div>
-          <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 mt-1">Splitter</div>
+          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
+          <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.splitter")}</div>
         </div>
         <div className="flex gap-5 items-center">
-          <StatBadge label="Neto" value={neto} color={neto >= 0 ? "#34d399" : "#f87171"} locale={locale} currency={currency} />
-          <StatBadge label="Descuentos" value={totalDesc} color="#fbbf24" locale={locale} currency={currency} />
-          <StatBadge label="Pool" value={pool} color="#60a5fa" locale={locale} currency={currency} big />
+          <StatBadge label={t("splitter.neto")} value={neto} color={neto >= 0 ? "#34d399" : "#f87171"} locale={locale} currency={currency} />
+          <StatBadge label={t("splitter.discounts")} value={totalDesc} color="#fbbf24" locale={locale} currency={currency} />
+          <StatBadge label={t("splitter.pool")} value={pool} color="#60a5fa" locale={locale} currency={currency} big />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-        <SplitterColumn
-          title="Entradas" total={totalEntradas} color="#34d399"
-          rows={entradas} labelKey="concepto" valueKey="valor"
-          onUpd={(i, k, v) => upd(setEntradas, i, k, v)}
-          onRm={(i) => rm(setEntradas, i)}
-          onAdd={() => add(setEntradas, { concepto: "Nuevo", valor: 0 })}
-          locale={locale} currency={currency}
-        />
-        <SplitterColumn
-          title="Salidas" total={totalSalidas} color="#f87171"
-          rows={salidas} labelKey="concepto" valueKey="valor"
-          onUpd={(i, k, v) => upd(setSalidas, i, k, v)}
-          onRm={(i) => rm(setSalidas, i)}
-          onAdd={() => add(setSalidas, { concepto: "Nuevo", valor: 0 })}
-          locale={locale} currency={currency}
-        />
-        <SplitterColumn
-          title="Descuentos" total={totalDesc} color="#fbbf24"
-          rows={descuentos} labelKey="label" valueKey="valor"
-          onUpd={(i, k, v) => upd(setDescuentos, i, k, v)}
-          onRm={(i) => rm(setDescuentos, i)}
-          onAdd={() => add(setDescuentos, { label: "Nuevo", valor: 0 })}
-          locale={locale} currency={currency}
-        />
+      {/* Content */}
+      <div className="p-4 flex flex-col gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <SplitterColumn
+            title={t("splitter.entradas")} total={totalEntradas} color="#34d399"
+            rows={entradas} labelKey="concepto" valueKey="valor"
+            onUpd={(i, k, v) => upd(setEntradas, i, k, v)}
+            onRm={(i) => rm(setEntradas, i)}
+            onAdd={() => add(setEntradas, { concepto: t("splitter.newRow"), valor: 0 })}
+            locale={locale} currency={currency} t={t}
+          />
+          <SplitterColumn
+            title={t("splitter.salidas")} total={totalSalidas} color="#f87171"
+            rows={salidas} labelKey="concepto" valueKey="valor"
+            onUpd={(i, k, v) => upd(setSalidas, i, k, v)}
+            onRm={(i) => rm(setSalidas, i)}
+            onAdd={() => add(setSalidas, { concepto: t("splitter.newRow"), valor: 0 })}
+            locale={locale} currency={currency} t={t}
+          />
+          <SplitterColumn
+            title={t("splitter.discounts")} total={totalDesc} color="#fbbf24"
+            rows={descuentos} labelKey="label" valueKey="valor"
+            onUpd={(i, k, v) => upd(setDescuentos, i, k, v)}
+            onRm={(i) => rm(setDescuentos, i)}
+            onAdd={() => add(setDescuentos, { label: t("splitter.newRow"), valor: 0 })}
+            locale={locale} currency={currency} t={t}
+          />
 
-        <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-xl p-3 flex flex-col gap-2">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-zinc-800">
-            <span className="text-[10px] font-semibold tracking-widest uppercase text-blue-500">Personas · {people.length}</span>
-            <span className="font-mono text-xs font-semibold text-blue-500">{fmt(pool, locale, currency)}</span>
-          </div>
-          <div className="flex flex-col gap-2 overflow-y-auto flex-1">
-            {perPerson.map((p, i) => (
-              <div key={p.id} className="rounded-xl p-2.5 flex flex-col gap-2" style={{ background: `${p.color}14`, border: `1px solid ${p.color}33` }}>
-                <div className="flex gap-2 items-center">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                    style={{ background: `${p.color}22`, color: p.color, border: `1px solid ${p.color}55` }}>
-                    {p.initials}
+          <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-3 flex flex-col gap-2">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-zinc-700">
+              <span className="text-[10px] font-semibold tracking-widest uppercase text-blue-500">{t("splitter.people")} · {people.length}</span>
+              <span className="font-mono text-xs font-semibold text-blue-500">{fmt(pool, locale, currency)}</span>
+            </div>
+            <div className="flex flex-col gap-2 overflow-y-auto flex-1">
+              {perPerson.map((p, i) => (
+                <div key={p.id} className="rounded-xl p-2.5 flex flex-col gap-2" style={{ background: `${p.color}14`, border: `1px solid ${p.color}33` }}>
+                  <div className="flex gap-2 items-center">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={{ background: `${p.color}22`, color: p.color, border: `1px solid ${p.color}55` }}>
+                      {p.initials}
+                    </div>
+                    <input
+                      value={p.name}
+                      onChange={(e) => setPeople((ps) => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                      className="flex-1 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 min-w-0"
+                    />
+                    <button onClick={() => setPeople((ps) => ps.filter((_, j) => j !== i))} className="text-slate-300 dark:text-zinc-600 hover:text-rose-500 transition p-0.5">
+                      <Trash2 size={12} />
+                    </button>
                   </div>
-                  <input
-                    value={p.name}
-                    onChange={(e) => setPeople((ps) => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                    className="flex-1 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 min-w-0"
-                  />
-                  <button onClick={() => setPeople((ps) => ps.filter((_, j) => j !== i))} className="text-slate-300 dark:text-zinc-600 hover:text-rose-500 transition p-0.5">
-                    <Trash2 size={12} />
-                  </button>
+                  <div className="flex gap-2 items-center">
+                    <input type="range" min="0" max="100" value={p.share}
+                      onChange={(e) => setPeople((ps) => ps.map((x, j) => j === i ? { ...x, share: +e.target.value } : x))}
+                      className="flex-1" style={{ accentColor: p.color }}
+                    />
+                    <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 w-6 text-right">{p.share}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400 dark:text-zinc-600">{Math.round(p.pct * 100)}%</span>
+                    <span className="font-mono font-semibold text-sm" style={{ color: p.color }}>{fmt(p.amount, locale, currency)}</span>
+                  </div>
                 </div>
-                <div className="flex gap-2 items-center">
-                  <input type="range" min="0" max="100" value={p.share}
-                    onChange={(e) => setPeople((ps) => ps.map((x, j) => j === i ? { ...x, share: +e.target.value } : x))}
-                    className="flex-1" style={{ accentColor: p.color }}
-                  />
-                  <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 w-6 text-right">{p.share}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 dark:text-zinc-600">{Math.round(p.pct * 100)}%</span>
-                  <span className="font-mono font-semibold text-sm" style={{ color: p.color }}>{fmt(p.amount, locale, currency)}</span>
-                </div>
-              </div>
-            ))}
-            <button
-              onClick={() => {
-                const idx = people.length;
-                const col = SPLITTER_COLORS[idx % SPLITTER_COLORS.length];
-                setPeople((ps) => [...ps, { id: "p" + Date.now(), name: "Nuevo", color: col, share: 50 }]);
-              }}
-              className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center"
-            >
-              <Plus size={11} /> Agregar persona
-            </button>
+              ))}
+              <button
+                onClick={() => {
+                  const idx = people.length;
+                  const col = SPLITTER_COLORS[idx % SPLITTER_COLORS.length];
+                  setPeople((ps) => [...ps, { id: "p" + Date.now(), name: t("splitter.newRow"), color: col, share: 50 }]);
+                }}
+                className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center"
+              >
+                <Plus size={11} /> {t("splitter.addPerson")}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {perPerson.length > 0 && pool > 0 && (
-        <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-xl p-3 flex flex-col gap-2">
-          <div className="text-[10px] font-mono font-semibold tracking-widest text-slate-400 dark:text-zinc-600 uppercase">Distribución visual</div>
-          <div className="h-8 rounded-lg overflow-hidden flex border border-slate-200 dark:border-zinc-800">
-            {perPerson.map((p) => (
-              <div key={p.id}
-                className="flex items-center justify-center text-[11px] font-bold overflow-hidden whitespace-nowrap px-1"
-                style={{ flex: p.amount || 0.0001, background: p.color, color: "#fff" }}>
-                {p.amount > pool * 0.08 ? `${p.name} · ${fmtShort(p.amount)}` : ""}
-              </div>
-            ))}
+        {perPerson.length > 0 && pool > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="text-[10px] font-mono font-semibold tracking-widest text-slate-400 dark:text-zinc-600 uppercase">{t("splitter.distribution")}</div>
+            <div className="h-8 rounded-lg overflow-hidden flex border border-slate-200 dark:border-zinc-800">
+              {perPerson.map((p) => (
+                <div key={p.id}
+                  className="flex items-center justify-center text-[11px] font-bold overflow-hidden whitespace-nowrap px-1"
+                  style={{ flex: p.amount || 0.0001, background: p.color, color: "#fff" }}>
+                  {p.amount > pool * 0.08 ? `${p.name} · ${fmtShort(p.amount)}` : ""}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -1572,37 +1609,37 @@ function DebtKiller() {
   );
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
+    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
       {/* Header */}
-      <div className="flex justify-between items-end">
+      <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
         <div>
           <button ref={brandRef} onClick={openPicker}
             className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none">
-            {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")} · {t("flujo.loans")}
+            {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
             <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
           </button>
-          <div className="text-xl font-bold text-slate-900 dark:text-zinc-50 mt-1 font-mono">{t("debt.title")}</div>
+          <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.debtKiller")}</div>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4">
+      <div className="px-6 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
           <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.totalDebt")}</div>
           <div className="text-xl font-bold font-mono mt-1.5 text-slate-900 dark:text-zinc-50">{fmt(totalLoans, locale, currency)}</div>
           <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{loans.length} {t("debt.activeLoans")}</div>
         </div>
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4">
+        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
           <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("summary.paid")}</div>
           <div className="text-xl font-bold font-mono mt-1.5" style={{ color: PAID_COLOR }}>{fmt(totalAbonos, locale, currency)}</div>
           <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{totalLoans > 0 ? Math.round(totalAbonos / totalLoans * 100) : 0}% {t("debt.ofTotal")}</div>
         </div>
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4">
+        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
           <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("flujo.restante")}</div>
           <div className="text-xl font-bold font-mono mt-1.5" style={{ color: UNPAID_COLOR }}>{fmt(remaining, locale, currency)}</div>
           <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{t("debt.toCollect")}</div>
         </div>
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4">
+        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
           <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.projection")}</div>
           <div className="text-xl font-bold font-mono mt-1.5" style={{ color: SCHED_COLOR }}>{monthsLeft > 0 ? `${monthsLeft} ${t("debt.months")}` : "—"}</div>
           <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">
@@ -1613,14 +1650,14 @@ function DebtKiller() {
 
       {/* Empty state */}
       {loans.length === 0 && (
-        <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl">
+        <div className="text-center py-16 px-6">
           <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("debt.noLoans")}</p>
         </div>
       )}
 
       {/* Loan cards */}
       {loans.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           {loans.map((l, i) => (
             <div key={l.id || i} className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4">
               {/* Header + donut */}
@@ -1693,6 +1730,7 @@ export default function App() {
   const [tab, setTab] = useState("ledger");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const [importedExpenses, setImportedExpenses] = useState(null);
   const [importedFlujo, setImportedFlujo] = useState(null);
 
@@ -1713,7 +1751,7 @@ export default function App() {
 
   const navItems = [
     { id: "ledger", label: t("nav.ledger"), Icon: BookOpen },
-    { id: "splitter", label: "Splitter", Icon: Users },
+    { id: "splitter", label: t("nav.splitter"), Icon: Users },
     { id: "debtKiller", label: t("nav.debtKiller"), Icon: Target },
     // { id: "expenses", label: t("nav.expenses"), Icon: LayoutList },
     // { id: "flujo", label: t("nav.flujo"), Icon: TrendingUp },
@@ -1741,7 +1779,7 @@ export default function App() {
         <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center shrink-0">
           <Wallet size={14} className="text-emerald-600 dark:text-emerald-400" />
         </div>
-        {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">FINANZAS</span>}
+        {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("ledger.brand")}</span>}
       </div>
 
       {!collapsed && (
@@ -1755,28 +1793,13 @@ export default function App() {
       </div>
 
       <div className="mt-auto">
-        <div className="border-t border-slate-200 dark:border-zinc-800 pt-3 space-y-2">
-          {!collapsed && <ImportExportBar onExport={handleExport} onImport={handleImport} />}
-          <div className={cn("flex items-center gap-1.5", collapsed ? "flex-col" : "")}>
-            {!collapsed && <Globe size={13} className="text-slate-400 dark:text-zinc-600 mr-0.5" />}
-            {["es", "en"].map((l) => (
-              <button key={l} onClick={() => setLang(l)}
-                className={cn("font-mono text-xs px-2 py-1 rounded-md transition font-medium",
-                  lang === l ? "bg-emerald-600 text-white" : "text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
-                )}>
-                {l.toUpperCase()}
-              </button>
-            ))}
-            <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="ml-auto p-1.5 rounded-md text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
-              {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-          </div>
+        <div className="border-t border-slate-200 dark:border-zinc-800 pt-3">
+          <button onClick={() => setPrefsOpen(true)}
+            className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors", collapsed ? "justify-center" : "")}>
+            <Settings size={15} className="shrink-0" />
+            {!collapsed && <span className="text-xs font-mono font-medium">{t("nav.settings")}</span>}
+          </button>
         </div>
-        <button onClick={() => setCollapsed((v) => !v)}
-          className="mt-2 w-full items-center justify-center p-2 rounded-lg text-slate-400 dark:text-zinc-600 hover:text-slate-600 dark:hover:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition hidden md:flex">
-          <ChevronLeft size={16} className={cn("transition-transform duration-200", collapsed ? "rotate-180" : "")} />
-        </button>
       </div>
     </div>
   );
@@ -1790,7 +1813,7 @@ export default function App() {
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
-            {tab === "expenses" ? t("nav.expenses") : tab === "flujo" ? t("nav.flujo") : tab === "splitter" ? "Splitter" : t("nav.ledger")}
+            {tab === "expenses" ? t("nav.expenses") : tab === "flujo" ? t("nav.flujo") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.ledger")}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -1819,12 +1842,18 @@ export default function App() {
       </AnimatePresence>
 
       {/* Desktop sidebar */}
-      <aside className={cn(
-        "hidden md:flex flex-col bg-white dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 p-3 shrink-0 transition-all duration-200",
-        collapsed ? "w-[60px]" : "w-56"
-      )}>
-        {sidebarContent}
-      </aside>
+      <div className={cn("hidden md:flex relative shrink-0 transition-all duration-200 group/sidebar", collapsed ? "w-[60px]" : "w-56")}>
+        <aside className="flex flex-col w-full bg-white dark:bg-zinc-900 border-r border-slate-200 dark:border-zinc-800 p-3">
+          {sidebarContent}
+        </aside>
+        {/* Resize handle */}
+        <div
+          onClick={() => setCollapsed((v) => !v)}
+          className="absolute top-0 right-0 w-3 h-full cursor-col-resize flex items-center justify-center z-10 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-150"
+        >
+          <div className="w-0.5 h-12 rounded-full bg-emerald-500/60 hover:bg-emerald-500 transition-colors duration-150" />
+        </div>
+      </div>
 
       {/* Main content */}
       <main className="flex-1 p-4 md:p-6 overflow-auto mt-14 md:mt-0 min-h-screen">
@@ -1834,9 +1863,50 @@ export default function App() {
             {tab === "flujo" && <FlujoCaja importedData={importedFlujo} />}
             {tab === "ledger" && <Ledger />}
             {tab === "splitter" && <Splitter />}
+            {tab === "debtKiller" && <DebtKiller />}
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Preferences modal */}
+      <Modal open={prefsOpen} onClose={() => setPrefsOpen(false)} title={t("nav.settings")}
+        actions={<Btn variant="primary" size="md" onClick={() => setPrefsOpen(false)}>{t("btn.save")}</Btn>}>
+        <div className="space-y-5">
+          {/* Language */}
+          <div>
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase mb-2">{t("prefs.language")}</div>
+            <div className="flex gap-2">
+              {[{ code: "es", label: "Español" }, { code: "en", label: "English" }].map(({ code, label }) => (
+                <button key={code} onClick={() => setLang(code)}
+                  className={cn("flex-1 py-2 rounded-lg border text-sm font-mono font-medium transition",
+                    lang === code
+                      ? "bg-emerald-600 border-emerald-600 text-white"
+                      : "border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+                  )}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Theme */}
+          <div>
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase mb-2">{t("prefs.theme")}</div>
+            <div className="flex gap-2">
+              {[{ value: "light", label: t("theme.light"), Icon: Sun }, { value: "dark", label: t("theme.dark"), Icon: Moon }].map(({ value, label, Icon }) => (
+                <button key={value} onClick={() => setTheme(value)}
+                  className={cn("flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-mono font-medium transition",
+                    theme === value
+                      ? "bg-emerald-600 border-emerald-600 text-white"
+                      : "border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+                  )}>
+                  <Icon size={14} /> {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

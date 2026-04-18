@@ -3,9 +3,15 @@
   "nav.flujo": "Cash Flow",
   "nav.ledger": "Expenses",
   "nav.menu": "Menu",
-  "nav.debtKiller": "Debt Killer",
+  "nav.debtKiller": "Debts",
+  "nav.splitter": "Splitter",
+  "nav.settings": "Preferences",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "prefs.language": "Language",
+  "prefs.theme": "Theme",
 
-  "ledger.brand": "FINANZAS",
+  "ledger.brand": "FINTRA",
   "ledger.title": "Monthly expenses",
   "ledger.editTitle": "Edit expense",
   "ledger.pending": "Pending",
@@ -96,5 +102,19 @@
   "debt.history": "Payment history",
   "debt.noPayments": "No payments yet",
   "debt.payment": "Payment",
-  "debt.projected": "Projected · month"
+  "debt.projected": "Projected · month",
+
+  "splitter.board": "Board",
+  "splitter.neto": "Net",
+  "splitter.discounts": "Discounts",
+  "splitter.pool": "Pool",
+  "splitter.entradas": "Income",
+  "splitter.salidas": "Expenses",
+  "splitter.people": "People",
+  "splitter.addPerson": "Add person",
+  "splitter.addRow": "Add",
+  "splitter.distribution": "Visual distribution",
+  "splitter.newRow": "New",
+  "splitter.person1": "Person 1",
+  "splitter.person2": "Person 2"
 }
