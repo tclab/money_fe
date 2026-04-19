@@ -1,7 +1,6 @@
 {
   "nav.expenses": "Gastos",
   "nav.flujo": "Flujo de Caja",
-  "nav.ledger": "Gastos",
   "nav.menu": "Menú",
   "nav.debtKiller": "Deudas",
   "nav.splitter": "Cuentas",
@@ -11,13 +10,13 @@
   "prefs.language": "Idioma",
   "prefs.theme": "Tema",
 
-  "ledger.brand": "FINTRA",
-  "ledger.title": "Gastos mensuales",
-  "ledger.editTitle": "Editar gasto",
-  "ledger.pending": "Pendiente",
-  "ledger.transactions": "transacciones",
-  "ledger.categories": "categorías",
-  "ledger.finalBalance": "Balance final",
+  "expenses.brand": "FINTRA",
+  "expenses.title": "Gastos mensuales",
+  "expenses.editTitle": "Editar gasto",
+  "expenses.pending": "Pendiente",
+  "expenses.transactions": "transacciones",
+  "expenses.categories": "categorías",
+  "expenses.finalBalance": "Balance final",
 
   "btn.export": "Exportar",
   "btn.import": "Importar",

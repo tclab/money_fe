@@ -1,7 +1,6 @@
 {
   "nav.expenses": "Expenses",
   "nav.flujo": "Cash Flow",
-  "nav.ledger": "Expenses",
   "nav.menu": "Menu",
   "nav.debtKiller": "Debts",
   "nav.splitter": "Splitter",
@@ -11,13 +10,13 @@
   "prefs.language": "Language",
   "prefs.theme": "Theme",
 
-  "ledger.brand": "FINTRA",
-  "ledger.title": "Monthly expenses",
-  "ledger.editTitle": "Edit expense",
-  "ledger.pending": "Pending",
-  "ledger.transactions": "transactions",
-  "ledger.categories": "categories",
-  "ledger.finalBalance": "Final balance",
+  "expenses.brand": "FINTRA",
+  "expenses.title": "Monthly expenses",
+  "expenses.editTitle": "Edit expense",
+  "expenses.pending": "Pending",
+  "expenses.transactions": "transactions",
+  "expenses.categories": "categories",
+  "expenses.finalBalance": "Final balance",
 
   "btn.export": "Export",
   "btn.import": "Import",

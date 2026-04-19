@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Trash2, ChevronDown, Cloud,
@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
+import { fetchSections, fetchExpenses, updateExpense, createSection, STATUS_TO_API } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -13,11 +14,17 @@ const fmt = (n, locale = "es-CO", currency = "COP") =>
   new Intl.NumberFormat(locale, { style: "currency", currency, minimumFractionDigits: 0 }).format(n || 0);
 const fmtMonth = (date, locale = "es-ES") =>
   new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(date).toUpperCase();
-const STORAGE_EXPENSES = "expense-tracker-all-months";
 const STORAGE_FLUJO = "flujo-caja-data";
 
 // ─── MODAL ────────────────────────────────────────────────────────────────────
 function Modal({ open, onClose, title, description, children, actions }) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <AnimatePresence>
@@ -57,53 +64,8 @@ function Btn({ onClick, variant = "default", size = "sm", className, children, d
 }
 
 
-// ─── EXPENSE TRACKER ─────────────────────────────────────────────────────────
-const DEFAULT_TEMPLATE = {
-  FIJOS: [
-    { id: 1, name: "Inversión", amount: 100000 }, { id: 2, name: "Ahorro", amount: 4000000 },
-    { id: 3, name: "Arriendo", amount: 4734000 }, { id: 4, name: "Seguro carro", amount: 460000 },
-    { id: 5, name: "EPM", amount: 263489 }, { id: 6, name: "Claro cel", amount: 56000 },
-    { id: 7, name: "Claro internet", amount: 99000 }, { id: 8, name: "Internet 4g", amount: 60000 },
-  ],
-  TARJETAS: [
-    { id: 9, name: "Lola Sueldo", amount: 360000 }, { id: 10, name: "Lola Salud", amount: 51347 },
-    { id: 11, name: "Falabella", amount: 0 }, { id: 12, name: "Davivienda", amount: 67000 },
-    { id: 13, name: "Scotía", amount: 3000000 }, { id: 14, name: "Bancolombia", amount: 48490 },
-  ],
-  APTOS: [
-    { id: 15, name: "Predial", amount: 616000 }, { id: 16, name: "Mini cubi", amount: 300000 },
-    { id: 17, name: "Admon 201", amount: 477614 }, { id: 18, name: "Admon 915", amount: 802700 },
-    { id: 19, name: "Tomas", amount: 1100000 },
-  ],
-};
-
-const STATUS_MIGRATION = { "Pagado": "paid", "No pagado": "unpaid", "Programado": "scheduled", "Verificar": "verify" };
-
-function migrateStatuses(allMonths) {
-  const migrated = {};
-  for (const [monthKey, categories] of Object.entries(allMonths)) {
-    migrated[monthKey] = {};
-    for (const [cat, expenses] of Object.entries(categories)) {
-      migrated[monthKey][cat] = expenses.map((exp) => ({
-        ...exp, status: STATUS_MIGRATION[exp.status] ?? exp.status,
-      }));
-    }
-  }
-  return migrated;
-}
-
-const freshMonth = () => {
-  const d = {};
-  Object.keys(DEFAULT_TEMPLATE).forEach((c) => {
-    d[c] = DEFAULT_TEMPLATE[c].map((e) => ({ ...e, status: "unpaid" }));
-  });
-  return d;
-};
-
-
-
-// ─── LEDGER ───────────────────────────────────────────────────────────────────
-const CAT_COLORS = { FIJOS: "#34d399", TARJETAS: "#60a5fa", APTOS: "#fbbf24" };
+// ─── EXPENSES ───────────────────────────────────────────────────────────────────
+const SECTION_COLORS = ["#34d399", "#60a5fa", "#fbbf24", "#f87171", "#a78bfa"];
 
 const STATUS_ICON = {
   paid:      { ch: "✓", cls: "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" },
@@ -177,13 +139,16 @@ function StatusPicker({ status, onChange }) {
   );
 }
 
-function Ledger() {
+function Expenses() {
   const { t, locale, currency, lang } = useI18n();
   const today = new Date();
-  const [allMonths, setAllMonths] = useState({});
+  const [sections, setSections] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(null); // { id, section_id, name, amount }
+  const [newSection, setNewSection] = useState(null); // null | string
   const [viewDate, setViewDate] = useState(today);
-  const [loaded, setLoaded] = useState(false);
-  const [editing, setEditing] = useState(null); // { cat, id, name, amount }
   const [pickerPos, setPickerPos] = useState(null);
   const brandRef = useRef();
   const pickerDropRef = useRef();
@@ -191,19 +156,16 @@ function Ledger() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await window.storage.get(STORAGE_EXPENSES);
-        if (r && r.value) setAllMonths(migrateStatuses(JSON.parse(r.value)));
-        else setAllMonths({});
-      } catch (e) { setAllMonths({}); }
-      setLoaded(true);
+        const [secs, exps] = await Promise.all([fetchSections(), fetchExpenses()]);
+        setSections(secs);
+        setExpenses(exps);
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
-
-  const saveData = useCallback(async (data) => {
-    try { await window.storage.set(STORAGE_EXPENSES, JSON.stringify(data)); } catch (e) { console.error(e); }
-  }, []);
-
-  useEffect(() => { if (loaded) saveData(allMonths); }, [allMonths, loaded]);
 
   useEffect(() => {
     if (!pickerPos) return;
@@ -221,163 +183,194 @@ function Ledger() {
     setPickerPos({ top: r.bottom + 6, left: r.left });
   };
 
-  const viewKey = toMonthKey(viewDate);
-  const isCurrentMonth = viewKey === toMonthKey(today);
-  const expenses = allMonths[viewKey] || null;
+  // TODO: pass month to fetchExpenses() once backend adds date field
+  const grouped = sections.map((s) => ({
+    ...s,
+    items: expenses.filter((e) => e.section_id === s.id),
+  }));
 
-  const createCurrentMonth = () => { setAllMonths((p) => ({ ...p, [toMonthKey(today)]: freshMonth() })); setViewDate(new Date(today)); };
-
-  const updateExpense = (cat, id, patch) => {
-    setAllMonths((p) => ({
-      ...p,
-      [viewKey]: { ...p[viewKey], [cat]: p[viewKey][cat].map((e) => e.id === id ? { ...e, ...patch } : e) },
-    }));
-  };
-
-  const saveEditing = () => {
-    if (!editing) return;
-    updateExpense(editing.cat, editing.id, { name: editing.name, amount: editing.amount });
-    setEditing(null);
-  };
-
-  const all = expenses ? Object.values(expenses).flat() : [];
+  const all = expenses;
   const grandTotal = all.reduce((s, e) => s + e.amount, 0);
   const paidTotal = all.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
   const pending = grandTotal - paidTotal;
 
-  if (!loaded) return (
+  const handleStatusChange = async (id, newStatus) => {
+    const prev = expenses.find((e) => e.id === id);
+    setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
+    try {
+      await updateExpense(id, { status: STATUS_TO_API[newStatus] });
+    } catch {
+      setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
+    }
+  };
+
+  const handleCreateSection = async () => {
+    const name = (newSection || "").trim();
+    if (!name) return;
+    setNewSection(null);
+    try {
+      const sec = await createSection(name);
+      setSections((xs) => [...xs, sec]);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveEditing = async () => {
+    if (!editing) return;
+    const prev = expenses.find((e) => e.id === editing.id);
+    setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount } : e));
+    setEditing(null);
+    try {
+      await updateExpense(editing.id, { expense: editing.name, value: editing.amount });
+    } catch {
+      setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount } : e));
+    }
+  };
+
+  if (loading) return (
     <div className="flex items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
       <Cloud size={28} className="animate-pulse mr-2" /> {t("state.loading")}
     </div>
   );
 
+  if (error) return (
+    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm font-mono">
+      {error}
+    </div>
+  );
+
   return (
     <div className="animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
-      {!expenses && (
-        <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl">
-          <button ref={brandRef} onClick={openPicker}
-            className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none mx-auto mb-4">
-            {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
-            <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
-          </button>
-          {isCurrentMonth
-            ? <><p className="text-slate-500 dark:text-zinc-400 mb-4 text-sm">{t("empty.noDataMonth")}</p><Btn variant="primary" size="md" onClick={createCurrentMonth}>{t("btn.createMonth")}</Btn></>
-            : <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("empty.noSavedData")}</p>}
-        </div>
-      )}
-
-      {expenses && (
-        <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
-            <div>
-              <button ref={brandRef} onClick={openPicker}
-                className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none group">
-                {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
-                <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
-              </button>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight">{t("ledger.title")}</div>
-                {!isCurrentMonth && (
-                  <span className="text-[10px] bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border border-slate-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-full font-mono">
-                    {t("state.readonly")}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="text-right font-mono text-xs text-slate-400 dark:text-zinc-500 leading-relaxed">
-              <div>{t("summary.total")} · <span className="text-slate-900 dark:text-zinc-100 font-semibold">{fmt(grandTotal, locale, currency)}</span></div>
-              <div>
-                {t("summary.paid")} · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{fmt(paidTotal, locale, currency)}</span>
-                {" "}&nbsp;{t("ledger.pending")} · <span className="text-rose-600 dark:text-rose-400 font-semibold">{fmt(pending, locale, currency)}</span>
-              </div>
-              <div className="text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">{all.length} {t("ledger.transactions")} · 3 {t("ledger.categories")}</div>
-            </div>
+      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
+          <div>
+            <button ref={brandRef} onClick={openPicker}
+              className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none group">
+              {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
+              <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
+            </button>
+            <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("expenses.title")}</div>
           </div>
+          <div className="text-right font-mono text-xs text-slate-400 dark:text-zinc-500 leading-relaxed">
+            <div>{t("summary.total")} · <span className="text-slate-900 dark:text-zinc-100 font-semibold">{fmt(grandTotal, locale, currency)}</span></div>
+            <div>
+              {t("summary.paid")} · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{fmt(paidTotal, locale, currency)}</span>
+              {" "}&nbsp;{t("expenses.pending")} · <span className="text-rose-600 dark:text-rose-400 font-semibold">{fmt(pending, locale, currency)}</span>
+            </div>
+            <div className="text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">{all.length} {t("expenses.transactions")} · {sections.length} {t("expenses.categories")}</div>
+          </div>
+        </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full font-mono text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-zinc-800">
-                  <th className="w-8 py-2 px-3" />
-                  <th className="text-left py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium">{t("col.expense")}</th>
-                  <th className="text-right py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-36">{t("col.value")}</th>
-                  <th className="text-center py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-16">{t("col.status")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(expenses).map(([cat, items]) => {
-                  const catTotal = items.reduce((s, e) => s + e.amount, 0);
-                  return (
-                    <Fragment key={cat}>
-                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
-                        <td className="py-2.5 px-3">
-                          <span style={{ color: CAT_COLORS[cat] || "#71717a" }} className="text-[10px]">■</span>
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full font-mono text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-zinc-800">
+                <th className="w-8 py-2 px-3" />
+                <th className="text-left py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium">{t("col.expense")}</th>
+                <th className="text-right py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-36">{t("col.value")}</th>
+                <th className="text-center py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-16">{t("col.status")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map((sec, si) => {
+                const catTotal = sec.items.reduce((s, e) => s + e.amount, 0);
+                const color = SECTION_COLORS[si % SECTION_COLORS.length];
+                return (
+                  <Fragment key={sec.id}>
+                    <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
+                      <td className="py-2.5 px-3">
+                        <span style={{ color }} className="text-[10px]">■</span>
+                      </td>
+                      <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">{sec.name}</td>
+                      <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
+                      <td className="py-2.5 px-3 text-center text-slate-400 dark:text-zinc-600 text-[10px]">{sec.items.length} items</td>
+                    </tr>
+                    {sec.items.map((e, i) => (
+                      <tr key={e.id}
+                        onClick={() => setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
+                        className={cn(
+                          "border-b border-dashed border-slate-100 dark:border-zinc-800/60 transition-colors",
+                          i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
+                          "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
+                        )}>
+                        <td className="py-1.5 px-3 w-8" />
+                        <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
+                        <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
+                          {fmt(e.amount, locale, currency)}
                         </td>
-                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">{cat}</td>
-                        <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
-                        <td className="py-2.5 px-3 text-center text-slate-400 dark:text-zinc-600 text-[10px]">{items.length} items</td>
+                        <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
+                          <StatusPicker status={e.status} onChange={(v) => handleStatusChange(e.id, v)} />
+                        </td>
                       </tr>
-                      {items.map((e, i) => (
-                        <tr key={e.id}
-                          onClick={isCurrentMonth ? () => setEditing({ cat, id: e.id, name: e.name, amount: e.amount }) : undefined}
-                          className={cn(
-                            "border-b border-dashed border-slate-100 dark:border-zinc-800/60 transition-colors",
-                            i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
-                            isCurrentMonth && "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
-                          )}>
-                          <td className="py-1.5 px-3 w-8" />
-                          <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                          <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
-                            {fmt(e.amount, locale, currency)}
-                          </td>
-                          <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
-                            {isCurrentMonth
-                              ? <StatusPicker status={e.status} onChange={(v) => updateExpense(cat, e.id, { status: v })} />
-                              : <span className={cn("inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold mx-auto", (STATUS_ICON[e.status] || STATUS_ICON.unpaid).cls)}>
-                                  {(STATUS_ICON[e.status] || STATUS_ICON.unpaid).ch}
-                                </span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 grid grid-cols-4 gap-4 items-baseline bg-slate-50 dark:bg-zinc-900/50 font-mono">
-            <div>
-              <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t("ledger.finalBalance")}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.paid")}</div>
-              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmt(paidTotal, locale, currency)}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("ledger.pending")}</div>
-              <div className="text-base font-bold text-rose-600 dark:text-rose-400">{fmt(pending, locale, currency)}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.total")}</div>
-              <div className="text-base font-bold text-slate-900 dark:text-zinc-100">{fmt(grandTotal, locale, currency)}</div>
-            </div>
+        {/* Footer */}
+        <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 grid grid-cols-4 gap-4 items-baseline bg-slate-50 dark:bg-zinc-900/50 font-mono">
+          <div>
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t("expenses.finalBalance")}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.paid")}</div>
+            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmt(paidTotal, locale, currency)}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("expenses.pending")}</div>
+            <div className="text-base font-bold text-rose-600 dark:text-rose-400">{fmt(pending, locale, currency)}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.total")}</div>
+            <div className="text-base font-bold text-slate-900 dark:text-zinc-100">{fmt(grandTotal, locale, currency)}</div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Month/year picker */}
+      {/* Add section */}
+      <button
+        onClick={() => setNewSection("")}
+        className="mt-2 w-full border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-400 dark:text-zinc-600 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-600 text-xs font-mono py-2 transition flex items-center gap-1.5 justify-center"
+      >
+        <Plus size={11} /> New section
+      </button>
+
+      {/* Month/year picker — display only until backend adds date field */}
       {pickerPos && (
         <MonthYearPicker pos={pickerPos} dropRef={pickerDropRef} viewDate={viewDate}
           onSelect={(d) => { setViewDate(d); setPickerPos(null); }} />
       )}
 
+      {/* New section modal */}
+      <Modal open={newSection !== null} onClose={() => setNewSection(null)}
+        title="New section"
+        actions={<>
+          <Btn onClick={() => setNewSection(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleCreateSection}>{t("btn.save")}</Btn>
+        </>}
+      >
+        <div className="mb-2">
+          <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+          <input
+            type="text"
+            value={newSection ?? ""}
+            onChange={(e) => setNewSection(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreateSection()}
+            autoFocus
+            className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+          />
+        </div>
+      </Modal>
+
       {/* Edit expense modal */}
       <Modal open={!!editing} onClose={() => setEditing(null)}
-        title={t("ledger.editTitle")}
+        title={t("expenses.editTitle")}
         actions={<>
           <Btn onClick={() => setEditing(null)}>{t("btn.cancel")}</Btn>
           <Btn variant="primary" size="md" onClick={saveEditing}>{t("btn.save")}</Btn>
@@ -872,12 +865,12 @@ function DebtKiller() {
 // ─── APP SHELL ────────────────────────────────────────────────────────────────
 export default function App() {
   const { t, lang, setLang, theme, setTheme } = useI18n();
-  const [tab, setTab] = useState("ledger");
+  const [tab, setTab] = useState("expenses");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const navItems = [
-    { id: "ledger", label: t("nav.ledger"), Icon: BookOpen },
+    { id: "expenses", label: t("nav.expenses"), Icon: BookOpen },
     { id: "splitter", label: t("nav.splitter"), Icon: Users },
     { id: "debtKiller", label: t("nav.debtKiller"), Icon: Target },
   ];
@@ -904,7 +897,7 @@ export default function App() {
         <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center shrink-0">
           <Wallet size={14} className="text-emerald-600 dark:text-emerald-400" />
         </div>
-        {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("ledger.brand")}</span>}
+        {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("expenses.brand")}</span>}
       </div>
 
       {!collapsed && (
@@ -938,7 +931,7 @@ export default function App() {
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
-            {tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.ledger")}
+            {tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -984,7 +977,7 @@ export default function App() {
       <main className="flex-1 p-4 md:p-6 overflow-auto mt-14 md:mt-0 min-h-screen">
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
-            {tab === "ledger" && <Ledger />}
+            {tab === "expenses" && <Expenses />}
             {tab === "splitter" && <Splitter />}
             {tab === "debtKiller" && <DebtKiller />}
           </motion.div>
