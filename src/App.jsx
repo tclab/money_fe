@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Trash2, ChevronDown, Cloud,
-  Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings,
+  Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check,
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi } from "./api.js";
+import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchSplitterPeople, createSplitterPerson, updateSplitterPerson, deleteSplitterPerson } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -570,31 +570,20 @@ function StatBadge({ label, value, color, big, locale, currency }) {
   );
 }
 
-function SplitterAmountInput({ value, onChange, locale, currency }) {
-  const [editing, setEditing] = useState(false);
-  const [raw, setRaw] = useState("");
-  return editing ? (
-    <input
-      type="number"
-      value={raw}
-      autoFocus
-      onChange={(e) => setRaw(e.target.value)}
-      onBlur={() => { onChange(parseFloat(raw) || 0); setEditing(false); }}
-      onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
-      className="w-24 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 text-right font-mono"
-    />
-  ) : (
-    <input
-      readOnly
-      value={value === 0 ? "" : fmt(value, locale, currency)}
-      onFocus={() => { setRaw(value === 0 ? "" : String(value)); setEditing(true); }}
-      placeholder="0"
-      className="w-24 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 text-right font-mono cursor-text"
-    />
-  );
-}
+function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit, onAdd, locale, currency, t, people }) {
+  const getPersonBadge = (row) => {
+    if (!row.person_id || !people) return null;
+    const person = people.find((p) => p.id === row.person_id);
+    if (!person) return null;
+    const initials = person.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
+    return (
+      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
+        style={{ background: `${person.color}22`, color: person.color, border: `1px solid ${person.color}55` }}>
+        {initials}
+      </span>
+    );
+  };
 
-function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, onRm, onAdd, locale, currency, t }) {
   return (
     <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-xl p-3 flex flex-col gap-2">
       <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-zinc-800">
@@ -603,21 +592,14 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, 
       </div>
       <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
         {rows.map((r, i) => (
-          <div key={i} className="flex gap-1.5 items-center">
-            <input
-              value={r[labelKey]}
-              onChange={(e) => onUpd(i, labelKey, e.target.value)}
-              className="flex-1 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 min-w-0"
-            />
-            <SplitterAmountInput
-              value={r[valueKey]}
-              onChange={(v) => onUpd(i, valueKey, v)}
-              locale={locale}
-              currency={currency}
-            />
-            <button onClick={() => onRm(i)} className="text-slate-300 dark:text-zinc-600 hover:text-rose-500 transition p-1">
-              <Trash2 size={12} />
-            </button>
+          <div
+            key={i}
+            onClick={() => onEdit(i)}
+            className="flex gap-1.5 items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/60 rounded-md px-2 py-1.5 -mx-2 transition-colors"
+          >
+            {getPersonBadge(r)}
+            <span className="flex-1 text-xs text-slate-800 dark:text-zinc-100 truncate">{r[labelKey] || "—"}</span>
+            <span className="font-mono text-xs text-slate-600 dark:text-zinc-300 shrink-0">{fmt(r[valueKey], locale, currency)}</span>
           </div>
         ))}
         <button onClick={onAdd} className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center">
@@ -629,67 +611,159 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onUpd, 
 }
 
 function Splitter() {
-  const { t, locale, currency, lang } = useI18n();
+  const { t, locale, currency, lang, theme } = useI18n();
   const today = new Date();
   const monthKey = toMonthKey(today);
 
-  const [entradas, setEntradas] = useState([]);
-  const [salidas, setSalidas] = useState([]);
-  const [descuentos, setDescuentos] = useState([]);
+  const [items, setItems] = useState([]);
   const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [editModal, setEditModal] = useState(null);
+  const [createModal, setCreateModal] = useState(null);
+  const [amountFocused, setAmountFocused] = useState(false);
+
+  const [personModal, setPersonModal] = useState(null);
+  const [editPersonModal, setEditPersonModal] = useState(null);
+  const [captureStatus, setCaptureStatus] = useState("idle");
+  const captureRef = useRef(null);
 
   useEffect(() => {
     (async () => {
+      setLoading(true);
       try {
-        const res = await window.storage.get(STORAGE_FLUJO);
-        if (res?.value) {
-          const allMonths = JSON.parse(res.value);
-          const month = allMonths[monthKey];
-          if (month) {
-            setEntradas((month.entradas || []).map((e) => ({ ...e })));
-            setSalidas((month.salidas || []).map((e) => ({ ...e })));
-            const raw = month.descuentos || [];
-            const desc = Array.isArray(raw) ? raw : Object.entries(raw).map(([label, valor]) => ({ label, valor }));
-            setDescuentos(desc.map((e) => ({ ...e })));
-          }
-        }
-      } catch {}
-      try {
-        const res = await window.storage.get(STORAGE_SPLITTER_PEOPLE);
-        if (res?.value) {
-          setPeople(JSON.parse(res.value));
-        } else {
-          setPeople([
-            { id: "p1", name: t("splitter.person1"), color: SPLITTER_COLORS[0], share: 50 },
-            { id: "p2", name: t("splitter.person2"), color: SPLITTER_COLORS[1], share: 50 },
-          ]);
-        }
-      } catch {}
+        const [splitterData, peopleData] = await Promise.all([
+          fetchSplitters(monthKey),
+          fetchSplitterPeople(),
+        ]);
+        setItems(splitterData);
+        setPeople(peopleData.length > 0 ? peopleData : []);
+      } catch (e) {
+        console.error("Failed to load splitter data:", e);
+        setItems([]);
+        setPeople([]);
+      }
+      setLoading(false);
     })();
   }, [monthKey]);
 
-  useEffect(() => {
-    if (people.length > 0) {
-      window.storage.set(STORAGE_SPLITTER_PEOPLE, JSON.stringify(people)).catch(() => {});
-    }
-  }, [people]);
+  const entradas = items.filter((i) => i.type === "income");
+  const salidas = items.filter((i) => i.type === "expense");
+  const descuentos = items.filter((i) => i.type === "discount");
 
-  const totalEntradas = entradas.reduce((s, e) => s + (e.valor || 0), 0);
-  const totalSalidas = salidas.reduce((s, e) => s + (e.valor || 0), 0);
-  const totalDesc = descuentos.reduce((s, e) => s + (e.valor || 0), 0);
+  const totalEntradas = entradas.reduce((s, e) => s + (e.value || 0), 0);
+  const totalSalidas = salidas.reduce((s, e) => s + (e.value || 0), 0);
+  const totalDesc = descuentos.reduce((s, e) => s + (e.value || 0), 0);
   const neto = totalEntradas - totalSalidas;
-  const pool = neto - totalDesc;
+  const pool = neto;
   const totalShares = people.reduce((s, p) => s + (p.share || 0), 0);
 
   const perPerson = people.map((p) => {
     const pct = totalShares > 0 ? p.share / totalShares : 0;
+    const personDiscounts = descuentos
+      .filter((d) => d.person_id === p.id)
+      .reduce((sum, d) => sum + (d.value || 0), 0);
     const initials = p.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
-    return { ...p, pct, amount: pool * pct, initials };
+    return { ...p, pct, amount: (pool * pct) - personDiscounts, discounts: personDiscounts, initials };
   });
 
-  const upd = (set, i, key, v) => set((xs) => xs.map((x, j) => j === i ? { ...x, [key]: v } : x));
-  const rm = (set, i) => set((xs) => xs.filter((_, j) => j !== i));
-  const add = (set, row) => set((xs) => [...xs, row]);
+  const openCreate = (type) => {
+    setCreateModal({ type, label: "", value: 0, person_id: type === "discount" && people.length > 0 ? people[0].id : null });
+    setAmountFocused(false);
+  };
+
+  const handleCreate = async () => {
+    if (!createModal) return;
+    const { type, label, value, person_id } = createModal;
+    const position = items.filter((i) => i.type === type).length;
+    setCreateModal(null);
+    try {
+      const created = await createSplitter(monthKey, type, label || t("splitter.newRow"), value, position, type === "discount" ? person_id : null);
+      setItems((xs) => [...xs, created]);
+    } catch (e) {
+      console.error("Failed to create splitter:", e);
+    }
+  };
+
+  const openEdit = (type, rows, index) => {
+    const row = rows[index];
+    setEditModal({ type, id: row.id, label: row.label, value: row.value, person_id: row.person_id || null });
+    setAmountFocused(false);
+  };
+
+  const handleEdit = async () => {
+    if (!editModal) return;
+    const { id, label, value, person_id, type } = editModal;
+    setEditModal(null);
+    setItems((xs) => xs.map((x) => x.id === id ? { ...x, label, value, person_id } : x));
+    try {
+      const patch = { label, value };
+      if (type === "discount") patch.person_id = person_id;
+      await updateSplitter(id, patch);
+    } catch (e) {
+      console.error("Failed to update splitter:", e);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editModal) return;
+    const { id } = editModal;
+    setEditModal(null);
+    setItems((xs) => xs.filter((x) => x.id !== id));
+    try {
+      await deleteSplitter(id);
+    } catch (e) {
+      console.error("Failed to delete splitter:", e);
+    }
+  };
+
+  const openCreatePerson = () => {
+    const idx = people.length;
+    const color = SPLITTER_COLORS[idx % SPLITTER_COLORS.length];
+    setPersonModal({ name: "", color, share: 50 });
+  };
+
+  const handleCreatePerson = async () => {
+    if (!personModal) return;
+    const { name, color, share } = personModal;
+    const position = people.length;
+    setPersonModal(null);
+    try {
+      const created = await createSplitterPerson(name || t("splitter.newRow"), color, share, position);
+      setPeople((ps) => [...ps, created]);
+    } catch (e) {
+      console.error("Failed to create person:", e);
+    }
+  };
+
+  const openEditPerson = (index) => {
+    const p = people[index];
+    setEditPersonModal({ id: p.id, name: p.name, color: p.color, share: p.share, index });
+  };
+
+  const handleEditPerson = async () => {
+    if (!editPersonModal) return;
+    const { id, name, color, share } = editPersonModal;
+    setEditPersonModal(null);
+    setPeople((ps) => ps.map((p) => p.id === id ? { ...p, name, color, share } : p));
+    try {
+      await updateSplitterPerson(id, { name, color, share });
+    } catch (e) {
+      console.error("Failed to update person:", e);
+    }
+  };
+
+  const handleDeletePerson = async () => {
+    if (!editPersonModal) return;
+    const { id } = editPersonModal;
+    setEditPersonModal(null);
+    setPeople((ps) => ps.filter((p) => p.id !== id));
+    try {
+      await deleteSplitterPerson(id);
+    } catch (e) {
+      console.error("Failed to delete person:", e);
+    }
+  };
 
   const fmtShort = (n) => {
     if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -697,13 +771,69 @@ function Splitter() {
     return String(Math.round(n));
   };
 
+  const handleCapture = async () => {
+    if (captureStatus !== "idle") return;
+    setCaptureStatus("generating");
+    try {
+      if (!window.html2canvas) {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        await new Promise((res, rej) => { script.onload = res; script.onerror = rej; document.head.appendChild(script); });
+      }
+      await new Promise((r) => setTimeout(r, 100));
+      const canvas = await window.html2canvas(captureRef.current, { backgroundColor: "#ffffff", scale: 2 });
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+          setCaptureStatus("copied");
+          setTimeout(() => setCaptureStatus("idle"), 2000);
+        } catch {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = `splitter-${monthKey}.png`; a.click();
+          URL.revokeObjectURL(url);
+          setCaptureStatus("idle");
+        }
+      }, "image/png");
+    } catch (e) {
+      console.error("Capture failed:", e);
+      setCaptureStatus("idle");
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
+      <Cloud size={28} className="animate-pulse mr-2" /> {t("state.loading")}
+    </div>
+  );
+
   return (
     <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
       {/* Header */}
       <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
-        <div>
-          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
-          <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.splitter")}</div>
+        <div className="flex items-end gap-3">
+          <div>
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
+            <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.splitter")}</div>
+          </div>
+          <button
+            onClick={handleCapture}
+            disabled={captureStatus !== "idle"}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all",
+              captureStatus === "copied"
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                : "bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300"
+            )}
+          >
+            {captureStatus === "generating" ? (
+              <><Cloud size={14} className="animate-pulse" /> {t("btn.generating")}</>
+            ) : captureStatus === "copied" ? (
+              <><Check size={14} /> {t("btn.copied")}</>
+            ) : (
+              <><Camera size={14} /> {t("btn.capture")}</>
+            )}
+          </button>
         </div>
         <div className="flex gap-5 items-center">
           <StatBadge label={t("splitter.neto")} value={neto} color={neto >= 0 ? "#34d399" : "#f87171"} locale={locale} currency={currency} />
@@ -717,27 +847,24 @@ function Splitter() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <SplitterColumn
             title={t("splitter.entradas")} total={totalEntradas} color="#34d399"
-            rows={entradas} labelKey="concepto" valueKey="valor"
-            onUpd={(i, k, v) => upd(setEntradas, i, k, v)}
-            onRm={(i) => rm(setEntradas, i)}
-            onAdd={() => add(setEntradas, { concepto: t("splitter.newRow"), valor: 0 })}
+            rows={entradas} labelKey="label" valueKey="value"
+            onEdit={(i) => openEdit("income", entradas, i)}
+            onAdd={() => openCreate("income")}
             locale={locale} currency={currency} t={t}
           />
           <SplitterColumn
             title={t("splitter.salidas")} total={totalSalidas} color="#f87171"
-            rows={salidas} labelKey="concepto" valueKey="valor"
-            onUpd={(i, k, v) => upd(setSalidas, i, k, v)}
-            onRm={(i) => rm(setSalidas, i)}
-            onAdd={() => add(setSalidas, { concepto: t("splitter.newRow"), valor: 0 })}
+            rows={salidas} labelKey="label" valueKey="value"
+            onEdit={(i) => openEdit("expense", salidas, i)}
+            onAdd={() => openCreate("expense")}
             locale={locale} currency={currency} t={t}
           />
           <SplitterColumn
             title={t("splitter.discounts")} total={totalDesc} color="#fbbf24"
-            rows={descuentos} labelKey="label" valueKey="valor"
-            onUpd={(i, k, v) => upd(setDescuentos, i, k, v)}
-            onRm={(i) => rm(setDescuentos, i)}
-            onAdd={() => add(setDescuentos, { label: t("splitter.newRow"), valor: 0 })}
-            locale={locale} currency={currency} t={t}
+            rows={descuentos} labelKey="label" valueKey="value"
+            onEdit={(i) => openEdit("discount", descuentos, i)}
+            onAdd={() => openCreate("discount")}
+            locale={locale} currency={currency} t={t} people={people}
           />
 
           <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-3 flex flex-col gap-2">
@@ -747,40 +874,28 @@ function Splitter() {
             </div>
             <div className="flex flex-col gap-2 overflow-y-auto flex-1">
               {perPerson.map((p, i) => (
-                <div key={p.id} className="rounded-xl p-2.5 flex flex-col gap-2" style={{ background: `${p.color}14`, border: `1px solid ${p.color}33` }}>
+                <div
+                  key={p.id}
+                  onClick={() => openEditPerson(i)}
+                  className="rounded-xl p-2.5 flex flex-col gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{ background: `${p.color}14`, border: `1px solid ${p.color}33` }}
+                >
                   <div className="flex gap-2 items-center">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
                       style={{ background: `${p.color}22`, color: p.color, border: `1px solid ${p.color}55` }}>
                       {p.initials}
                     </div>
-                    <input
-                      value={p.name}
-                      onChange={(e) => setPeople((ps) => ps.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                      className="flex-1 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-md text-slate-800 dark:text-zinc-100 px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-emerald-500/50 min-w-0"
-                    />
-                    <button onClick={() => setPeople((ps) => ps.filter((_, j) => j !== i))} className="text-slate-300 dark:text-zinc-600 hover:text-rose-500 transition p-0.5">
-                      <Trash2 size={12} />
-                    </button>
+                    <span className="flex-1 text-xs text-slate-800 dark:text-zinc-100 truncate">{p.name}</span>
+                    <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">{p.share}%</span>
                   </div>
-                  <div className="flex gap-2 items-center">
-                    <input type="range" min="0" max="100" value={p.share}
-                      onChange={(e) => setPeople((ps) => ps.map((x, j) => j === i ? { ...x, share: +e.target.value } : x))}
-                      className="flex-1" style={{ accentColor: p.color }}
-                    />
-                    <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 w-6 text-right">{p.share}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400 dark:text-zinc-600">{Math.round(p.pct * 100)}%</span>
-                    <span className="font-mono font-semibold text-sm" style={{ color: p.color }}>{fmt(p.amount, locale, currency)}</span>
+                  <div className="flex justify-between text-xs pl-9">
+                    <span className="text-slate-400 dark:text-zinc-600">{Math.round(p.pct * 100)}% of pool</span>
+                    <span className="font-mono font-semibold" style={{ color: p.color }}>{fmt(p.amount, locale, currency)}</span>
                   </div>
                 </div>
               ))}
               <button
-                onClick={() => {
-                  const idx = people.length;
-                  const col = SPLITTER_COLORS[idx % SPLITTER_COLORS.length];
-                  setPeople((ps) => [...ps, { id: "p" + Date.now(), name: t("splitter.newRow"), color: col, share: 50 }]);
-                }}
+                onClick={openCreatePerson}
                 className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center"
               >
                 <Plus size={11} /> {t("splitter.addPerson")}
@@ -803,6 +918,359 @@ function Splitter() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Create modal */}
+      <Modal open={!!createModal} onClose={() => setCreateModal(null)}
+        title={createModal?.type === "income" ? t("splitter.entradas") : createModal?.type === "expense" ? t("splitter.salidas") : t("splitter.discounts")}
+        actions={<>
+          <Btn onClick={() => setCreateModal(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleCreate}>{t("btn.save")}</Btn>
+        </>}
+      >
+        {createModal && (
+          <div className="space-y-3 mb-2">
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.concept")}</label>
+              <input
+                type="text"
+                value={createModal.label}
+                onChange={(e) => setCreateModal((p) => ({ ...p, label: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                autoFocus
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              {amountFocused ? (
+                <input
+                  type="number"
+                  value={createModal.value || ""}
+                  autoFocus
+                  onChange={(e) => setCreateModal((p) => ({ ...p, value: parseFloat(e.target.value) || 0 }))}
+                  onBlur={() => setAmountFocused(false)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+                />
+              ) : (
+                <input
+                  readOnly
+                  value={createModal.value === 0 ? "" : fmt(createModal.value, locale, currency)}
+                  onFocus={() => setAmountFocused(true)}
+                  placeholder="0"
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
+                />
+              )}
+            </div>
+            {createModal.type === "discount" && people.length > 0 && (
+              <div>
+                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("splitter.people")}</label>
+                <select
+                  value={createModal.person_id || ""}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, person_id: e.target.value || null }))}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+                >
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit modal */}
+      <Modal open={!!editModal} onClose={() => setEditModal(null)}
+        title={editModal?.type === "income" ? t("splitter.entradas") : editModal?.type === "expense" ? t("splitter.salidas") : t("splitter.discounts")}
+        actions={<>
+          <Btn variant="danger" onClick={handleDelete}>{t("btn.delete")}</Btn>
+          <Btn onClick={() => setEditModal(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleEdit}>{t("btn.save")}</Btn>
+        </>}
+      >
+        {editModal && (
+          <div className="space-y-3 mb-2">
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.concept")}</label>
+              <input
+                type="text"
+                value={editModal.label}
+                onChange={(e) => setEditModal((p) => ({ ...p, label: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+                autoFocus
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              {amountFocused ? (
+                <input
+                  type="number"
+                  value={editModal.value || ""}
+                  autoFocus
+                  onChange={(e) => setEditModal((p) => ({ ...p, value: parseFloat(e.target.value) || 0 }))}
+                  onBlur={() => setAmountFocused(false)}
+                  onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+                />
+              ) : (
+                <input
+                  readOnly
+                  value={editModal.value === 0 ? "" : fmt(editModal.value, locale, currency)}
+                  onFocus={() => setAmountFocused(true)}
+                  placeholder="0"
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
+                />
+              )}
+            </div>
+            {editModal.type === "discount" && people.length > 0 && (
+              <div>
+                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("splitter.people")}</label>
+                <select
+                  value={editModal.person_id || ""}
+                  onChange={(e) => setEditModal((p) => ({ ...p, person_id: e.target.value || null }))}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+                >
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Create person modal */}
+      <Modal open={!!personModal} onClose={() => setPersonModal(null)}
+        title={t("splitter.addPerson")}
+        actions={<>
+          <Btn onClick={() => setPersonModal(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleCreatePerson}>{t("btn.save")}</Btn>
+        </>}
+      >
+        {personModal && (
+          <div className="space-y-3 mb-2">
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+              <input
+                type="text"
+                value={personModal.name}
+                onChange={(e) => setPersonModal((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleCreatePerson()}
+                autoFocus
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={personModal.share}
+                onChange={(e) => setPersonModal((p) => ({ ...p, share: parseInt(e.target.value) || 0 }))}
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
+              <div className="flex gap-2">
+                {SPLITTER_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setPersonModal((p) => ({ ...p, color: c }))}
+                    className="w-8 h-8 rounded-full border-2 transition-all"
+                    style={{ background: c, borderColor: personModal.color === c ? "#fff" : "transparent", boxShadow: personModal.color === c ? `0 0 0 2px ${c}` : "none" }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit person modal */}
+      <Modal open={!!editPersonModal} onClose={() => setEditPersonModal(null)}
+        title={t("splitter.people")}
+        actions={<>
+          <Btn variant="danger" onClick={handleDeletePerson}>{t("btn.delete")}</Btn>
+          <Btn onClick={() => setEditPersonModal(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleEditPerson}>{t("btn.save")}</Btn>
+        </>}
+      >
+        {editPersonModal && (
+          <div className="space-y-3 mb-2">
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+              <input
+                type="text"
+                value={editPersonModal.name}
+                onChange={(e) => setEditPersonModal((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleEditPerson()}
+                autoFocus
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={editPersonModal.share}
+                onChange={(e) => setEditPersonModal((p) => ({ ...p, share: parseInt(e.target.value) || 0 }))}
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
+              <div className="flex gap-2">
+                {SPLITTER_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setEditPersonModal((p) => ({ ...p, color: c }))}
+                    className="w-8 h-8 rounded-full border-2 transition-all"
+                    style={{ background: c, borderColor: editPersonModal.color === c ? "#fff" : "transparent", boxShadow: editPersonModal.color === c ? `0 0 0 2px ${c}` : "none" }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Hidden capture layout */}
+      <div style={{ position: "absolute", left: "-9999px", top: 0 }}>
+        {(() => {
+          const isDark = theme === "dark";
+          const bg = isDark ? "#18181b" : "#fff";
+          const cardBg = isDark ? "#27272a" : "#f8fafc";
+          const border = isDark ? "#3f3f46" : "#e2e8f0";
+          const textPrimary = isDark ? "#fafafa" : "#1e293b";
+          const textSecondary = isDark ? "#a1a1aa" : "#475569";
+          const textMuted = isDark ? "#71717a" : "#94a3b8";
+
+          const getPersonBadge = (row) => {
+            if (!row.person_id) return null;
+            const person = people.find((p) => p.id === row.person_id);
+            if (!person) return null;
+            const initials = person.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
+            return (
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: `${person.color}22`, border: `1px solid ${person.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: person.color, flexShrink: 0 }}>
+                {initials}
+              </div>
+            );
+          };
+
+          return (
+            <div ref={captureRef} style={{ width: 500, padding: 24, background: bg, fontFamily: "ui-monospace, monospace" }}>
+              {/* Header */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: textMuted, textTransform: "uppercase", letterSpacing: 2 }}>{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 4 }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: textPrimary }}>{t("nav.splitter")}</div>
+                  <div style={{ display: "flex", gap: 20, alignItems: "flex-end" }}>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 9, color: textMuted, textTransform: "uppercase" }}>{t("splitter.neto")}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: neto >= 0 ? "#34d399" : "#f87171" }}>{fmt(neto, locale, currency)}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 9, color: textMuted, textTransform: "uppercase" }}>{t("splitter.discounts")}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#fbbf24" }}>{fmt(totalDesc, locale, currency)}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 9, color: textMuted, textTransform: "uppercase" }}>{t("splitter.pool")}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: "#60a5fa" }}>{fmt(pool, locale, currency)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Entradas */}
+              <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#34d399", textTransform: "uppercase", letterSpacing: 1 }}>{t("splitter.entradas")}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#34d399" }}>{fmt(totalEntradas, locale, currency)}</span>
+                </div>
+                {entradas.map((e, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: i > 0 ? `1px dashed ${border}` : "none" }}>
+                    <span style={{ fontSize: 12, color: textSecondary }}>{e.label}</span>
+                    <span style={{ fontSize: 12, color: textMuted }}>{fmt(e.value, locale, currency)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Salidas */}
+              <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#f87171", textTransform: "uppercase", letterSpacing: 1 }}>{t("splitter.salidas")}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#f87171" }}>{fmt(totalSalidas, locale, currency)}</span>
+                </div>
+                {salidas.map((e, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderTop: i > 0 ? `1px dashed ${border}` : "none" }}>
+                    <span style={{ fontSize: 12, color: textSecondary }}>{e.label}</span>
+                    <span style={{ fontSize: 12, color: textMuted }}>{fmt(e.value, locale, currency)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Descuentos */}
+              <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1 }}>{t("splitter.discounts")}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#fbbf24" }}>{fmt(totalDesc, locale, currency)}</span>
+                </div>
+                {descuentos.map((e, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: i > 0 ? `1px dashed ${border}` : "none" }}>
+                    {getPersonBadge(e)}
+                    <span style={{ flex: 1, fontSize: 12, color: textSecondary }}>{e.label}</span>
+                    <span style={{ fontSize: 12, color: textMuted }}>{fmt(e.value, locale, currency)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* People */}
+              <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#60a5fa", textTransform: "uppercase", letterSpacing: 1 }}>{t("splitter.people")} · {people.length}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#60a5fa" }}>{fmt(pool, locale, currency)}</span>
+                </div>
+                {perPerson.map((p, i) => (
+                  <div key={p.id} style={{ background: `${p.color}14`, border: `1px solid ${p.color}33`, borderRadius: 10, padding: 10, marginTop: i > 0 ? 8 : 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: `${p.color}22`, border: `1px solid ${p.color}55`, textAlign: "center", fontSize: 9, fontWeight: 700, color: p.color, flexShrink: 0, paddingTop: 6 }}>
+                        {p.initials}
+                      </div>
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: textPrimary }}>{p.name}</span>
+                      <span style={{ fontSize: 11, color: textMuted }}>{p.share}%</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, marginLeft: 32 }}>
+                      <span style={{ fontSize: 11, color: textMuted }}>{Math.round(p.pct * 100)}% of pool</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: p.color }}>{fmt(p.amount, locale, currency)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Distribution bar */}
+              {perPerson.length > 0 && pool > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, color: textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{t("splitter.distribution")}</div>
+                  <div style={{ borderRadius: 6, overflow: "hidden", display: "flex", border: `1px solid ${border}` }}>
+                    {perPerson.map((p) => (
+                      <div key={p.id} style={{ flex: p.amount > 0 ? p.amount : 0.0001, background: p.color, textAlign: "center", fontSize: 10, fontWeight: 600, color: "#fff", overflow: "hidden", whiteSpace: "nowrap", padding: "6px 6px" }}>
+                        {p.amount > pool * 0.08 ? `${p.name} · ${fmtShort(p.amount)}` : ""}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

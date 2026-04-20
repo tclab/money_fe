@@ -74,3 +74,75 @@ export async function updateExpense(id, patch) {
   if (!res.ok) throw new Error("Failed to update expense");
   return mapExpense(await res.json());
 }
+
+// ─── SPLITTER ─────────────────────────────────────────────────────────────────
+
+export async function fetchSplitters(month) {
+  const url = `${BASE}/splitter/items?user_id=${USER_ID}&month=${encodeURIComponent(month)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch splitters");
+  const data = await res.json();
+  return data.splitters ?? [];
+}
+
+export async function createSplitter(month, type, label, value, position = 0, person_id = null) {
+  const body = { user_id: USER_ID, month, type, label, value, position };
+  if (person_id) body.person_id = person_id;
+  const res = await fetch(`${BASE}/splitter/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Failed to create splitter");
+  return res.json();
+}
+
+export async function updateSplitter(id, patch) {
+  const res = await fetch(`${BASE}/splitter/items/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error("Failed to update splitter");
+  return res.json();
+}
+
+export async function deleteSplitter(id) {
+  const res = await fetch(`${BASE}/splitter/items/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete splitter");
+}
+
+// ─── SPLITTER PEOPLE ──────────────────────────────────────────────────────────
+
+export async function fetchSplitterPeople() {
+  const url = `${BASE}/splitter/people?user_id=${USER_ID}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch splitter people");
+  const data = await res.json();
+  return data.people ?? [];
+}
+
+export async function createSplitterPerson(name, color, share, position = 0) {
+  const res = await fetch(`${BASE}/splitter/people`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: USER_ID, name, color, share, position }),
+  });
+  if (!res.ok) throw new Error("Failed to create splitter person");
+  return res.json();
+}
+
+export async function updateSplitterPerson(id, patch) {
+  const res = await fetch(`${BASE}/splitter/people/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error("Failed to update splitter person");
+  return res.json();
+}
+
+export async function deleteSplitterPerson(id) {
+  const res = await fetch(`${BASE}/splitter/people/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete splitter person");
+}
