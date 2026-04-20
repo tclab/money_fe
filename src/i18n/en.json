@@ -18,6 +18,8 @@
   "expenses.categories": "categories",
   "expenses.finalBalance": "Final balance",
   "expenses.newCategory": "New category",
+  "expense.deleteTitle": "Delete expense",
+  "expense.deleteDesc": "Delete \"{name}\"? This cannot be undone.",
   "category.delete": "Delete category",
   "category.deleteTitle": "Delete category",
   "category.deleteDesc": "\"{name}\" and all its expenses will be permanently deleted.",

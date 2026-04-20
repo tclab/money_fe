@@ -18,6 +18,8 @@
   "expenses.categories": "categorías",
   "expenses.finalBalance": "Balance final",
   "expenses.newCategory": "Nueva categoría",
+  "expense.deleteTitle": "Eliminar gasto",
+  "expense.deleteDesc": "¿Eliminar \"{name}\"? Esta acción no se puede deshacer.",
   "category.delete": "Eliminar categoría",
   "category.deleteTitle": "Eliminar categoría",
   "category.deleteDesc": "\"{name}\" y todos sus gastos serán eliminados permanentemente.",

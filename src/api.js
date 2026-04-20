@@ -50,6 +50,11 @@ export async function createExpense(categoryId, name, amount) {
   return mapExpense(await res.json());
 }
 
+export async function deleteExpense(id) {
+  const res = await fetch(`${BASE}/expenses/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete expense");
+}
+
 export async function deleteCategory(id) {
   const res = await fetch(`${BASE}/categories/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete category");

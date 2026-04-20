@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteCategory as deleteCategoryApi } from "./api.js";
+import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -149,6 +149,9 @@ function Expenses() {
   const [editing, setEditing] = useState(null); // { id, section_id, name, amount }
   const [newCategory, setNewCategory] = useState(null); // null | string
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, name }
+  const [pendingDeleteExpense, setPendingDeleteExpense] = useState(null); // null | { id, name }
+  const [editAmountFocused, setEditAmountFocused] = useState(false);
+  const [newAmountFocused, setNewAmountFocused] = useState(false);
   const [newExpense, setNewExpense] = useState(null); // null | { section_id, name, amount }
   const [viewDate, setViewDate] = useState(today);
   const [pickerPos, setPickerPos] = useState(null);
@@ -203,6 +206,21 @@ function Expenses() {
       await updateExpense(id, { status: newStatus });
     } catch {
       setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
+    }
+  };
+
+  useEffect(() => { setEditAmountFocused(false); }, [editing?.id]);
+  useEffect(() => { setNewAmountFocused(false); }, [newExpense?.category_id]);
+
+  const handleDeleteExpense = async () => {
+    if (!pendingDeleteExpense) return;
+    const { id } = pendingDeleteExpense;
+    setPendingDeleteExpense(null);
+    setExpenses((xs) => xs.filter((e) => e.id !== id));
+    try {
+      await deleteExpenseApi(id);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -343,7 +361,14 @@ function Expenses() {
                           i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
                           "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
                         )}>
-                        <td className="py-1.5 px-3 w-8" />
+                        <td className="py-1.5 px-3 w-8" onClick={(ev) => ev.stopPropagation()}>
+                          <button
+                            onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
+                            className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </td>
                         <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
                         <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
                           {fmt(e.amount, locale, currency)}
@@ -415,6 +440,16 @@ function Expenses() {
         </div>
       </Modal>
 
+      {/* Delete expense modal */}
+      <Modal open={!!pendingDeleteExpense} onClose={() => setPendingDeleteExpense(null)}
+        title={t("expense.deleteTitle")}
+        description={t("expense.deleteDesc").replace("{name}", pendingDeleteExpense?.name ?? "")}
+        actions={<>
+          <Btn onClick={() => setPendingDeleteExpense(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="danger" size="md" onClick={handleDeleteExpense}>{t("btn.delete")}</Btn>
+        </>}
+      />
+
       {/* Delete category modal */}
       <Modal open={!!pendingDelete} onClose={() => setPendingDelete(null)}
         title={t("category.deleteTitle")}
@@ -448,14 +483,25 @@ function Expenses() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
-              <input
-                type="number"
-                value={newExpense.amount || ""}
-                onChange={(e) => setNewExpense((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
-                onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
-                placeholder="0"
-                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-              />
+              {newAmountFocused ? (
+                <input
+                  type="number"
+                  value={newExpense.amount || ""}
+                  autoFocus
+                  onChange={(e) => setNewExpense((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                  onBlur={() => setNewAmountFocused(false)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+                />
+              ) : (
+                <input
+                  readOnly
+                  value={newExpense.amount === 0 ? "" : fmt(newExpense.amount, locale, currency)}
+                  onFocus={() => setNewAmountFocused(true)}
+                  placeholder="0"
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
+                />
+              )}
             </div>
           </div>
         )}
@@ -484,13 +530,25 @@ function Expenses() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
-              <input
-                type="number"
-                value={editing.amount}
-                onChange={(e) => setEditing((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
-                onKeyDown={(e) => e.key === "Enter" && saveEditing()}
-                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-              />
+              {editAmountFocused ? (
+                <input
+                  type="number"
+                  value={editing.amount || ""}
+                  autoFocus
+                  onChange={(e) => setEditing((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                  onBlur={() => setEditAmountFocused(false)}
+                  onKeyDown={(e) => e.key === "Enter" && saveEditing()}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+                />
+              ) : (
+                <input
+                  readOnly
+                  value={editing.amount === 0 ? "" : fmt(editing.amount, locale, currency)}
+                  onFocus={() => setEditAmountFocused(true)}
+                  placeholder="0"
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
+                />
+              )}
             </div>
           </div>
         )}
@@ -993,11 +1051,14 @@ export default function App() {
         {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("expenses.brand")}</span>}
       </div>
 
-      {!collapsed && (
-        <div className="px-1 mb-1">
+      <div className="px-1 mb-1 flex items-center gap-2">
+        <button onClick={() => setCollapsed((v) => !v)} className="text-slate-400 dark:text-zinc-600 hover:text-slate-600 dark:hover:text-zinc-400 transition-colors">
+          <Menu size={14} />
+        </button>
+        {!collapsed && (
           <span className="font-mono text-xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-widest">{t("nav.menu")}</span>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
         {navItems.map(({ id, label, Icon }) => <NavItem key={id} id={id} label={label} Icon={Icon} />)}
