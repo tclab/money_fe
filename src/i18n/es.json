@@ -17,6 +17,11 @@
   "expenses.transactions": "transacciones",
   "expenses.categories": "categorías",
   "expenses.finalBalance": "Balance final",
+  "expenses.newCategory": "Nueva categoría",
+  "category.delete": "Eliminar categoría",
+  "category.deleteTitle": "Eliminar categoría",
+  "category.deleteDesc": "\"{name}\" y todos sus gastos serán eliminados permanentemente.",
+  "btn.delete": "Eliminar",
 
   "btn.export": "Exportar",
   "btn.import": "Importar",

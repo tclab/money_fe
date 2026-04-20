@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchSections, fetchExpenses, updateExpense, createSection, STATUS_TO_API } from "./api.js";
+import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteCategory as deleteCategoryApi } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -142,12 +142,14 @@ function StatusPicker({ status, onChange }) {
 function Expenses() {
   const { t, locale, currency, lang } = useI18n();
   const today = new Date();
-  const [sections, setSections] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // { id, section_id, name, amount }
-  const [newSection, setNewSection] = useState(null); // null | string
+  const [newCategory, setNewCategory] = useState(null); // null | string
+  const [pendingDelete, setPendingDelete] = useState(null); // null | { id, name }
+  const [newExpense, setNewExpense] = useState(null); // null | { section_id, name, amount }
   const [viewDate, setViewDate] = useState(today);
   const [pickerPos, setPickerPos] = useState(null);
   const brandRef = useRef();
@@ -156,8 +158,8 @@ function Expenses() {
   useEffect(() => {
     (async () => {
       try {
-        const [secs, exps] = await Promise.all([fetchSections(), fetchExpenses()]);
-        setSections(secs);
+        const [secs, exps] = await Promise.all([fetchCategories(), fetchExpenses()]);
+        setCategories(secs);
         setExpenses(exps);
       } catch (e) {
         setError(e.message);
@@ -184,9 +186,9 @@ function Expenses() {
   };
 
   // TODO: pass month to fetchExpenses() once backend adds date field
-  const grouped = sections.map((s) => ({
+  const grouped = categories.map((s) => ({
     ...s,
-    items: expenses.filter((e) => e.section_id === s.id),
+    items: expenses.filter((e) => e.category_id === s.id),
   }));
 
   const all = expenses;
@@ -198,19 +200,46 @@ function Expenses() {
     const prev = expenses.find((e) => e.id === id);
     setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
     try {
-      await updateExpense(id, { status: STATUS_TO_API[newStatus] });
+      await updateExpense(id, { status: newStatus });
     } catch {
       setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
     }
   };
 
-  const handleCreateSection = async () => {
-    const name = (newSection || "").trim();
-    if (!name) return;
-    setNewSection(null);
+  const handleDeleteCategory = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
+    setCategories((xs) => xs.filter((c) => c.id !== id));
+    setExpenses((xs) => xs.filter((e) => e.category_id !== id));
     try {
-      const sec = await createSection(name);
-      setSections((xs) => [...xs, sec]);
+      await deleteCategoryApi(id);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    const name = (newCategory || "").trim();
+    if (!name) return;
+    setNewCategory(null);
+    try {
+      const sec = await createCategory(name);
+      setCategories((xs) => [...xs, sec]);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateExpense = async () => {
+    if (!newExpense) return;
+    const name = (newExpense.name || "").trim();
+    if (!name) return;
+    const draft = { ...newExpense, name };
+    setNewExpense(null);
+    try {
+      const exp = await createExpense(draft.category_id, draft.name, draft.amount);
+      setExpenses((xs) => [...xs, exp]);
     } catch (e) {
       console.error(e);
     }
@@ -259,7 +288,7 @@ function Expenses() {
               {t("summary.paid")} · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{fmt(paidTotal, locale, currency)}</span>
               {" "}&nbsp;{t("expenses.pending")} · <span className="text-rose-600 dark:text-rose-400 font-semibold">{fmt(pending, locale, currency)}</span>
             </div>
-            <div className="text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">{all.length} {t("expenses.transactions")} · {sections.length} {t("expenses.categories")}</div>
+            <div className="text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">{all.length} {t("expenses.transactions")} · {categories.length} {t("expenses.categories")}</div>
           </div>
         </div>
 
@@ -284,7 +313,25 @@ function Expenses() {
                       <td className="py-2.5 px-3">
                         <span style={{ color }} className="text-[10px]">■</span>
                       </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">{sec.name}</td>
+                      <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">
+                        <span className="flex items-center gap-2">
+                          {sec.name}
+                          <button
+                            onClick={() => setNewExpense({ category_id: sec.id, name: "", amount: 0 })}
+                            className="inline-flex items-center justify-center w-4 h-4 rounded text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                            title="Add expense"
+                          >
+                            <Plus size={10} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: sec.id, name: sec.name }); }}
+                            className="inline-flex items-center justify-center w-4 h-4 rounded text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                            title={t("category.delete")}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </span>
+                      </td>
                       <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
                       <td className="py-2.5 px-3 text-center text-slate-400 dark:text-zinc-600 text-[10px]">{sec.items.length} items</td>
                     </tr>
@@ -335,10 +382,10 @@ function Expenses() {
 
       {/* Add section */}
       <button
-        onClick={() => setNewSection("")}
+        onClick={() => setNewCategory("")}
         className="mt-2 w-full border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-400 dark:text-zinc-600 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-600 text-xs font-mono py-2 transition flex items-center gap-1.5 justify-center"
       >
-        <Plus size={11} /> New section
+        <Plus size={11} /> {t("expenses.newCategory")}
       </button>
 
       {/* Month/year picker — display only until backend adds date field */}
@@ -348,24 +395,70 @@ function Expenses() {
       )}
 
       {/* New section modal */}
-      <Modal open={newSection !== null} onClose={() => setNewSection(null)}
-        title="New section"
+      <Modal open={newCategory !== null} onClose={() => setNewCategory(null)}
+        title={t("expenses.newCategory")}
         actions={<>
-          <Btn onClick={() => setNewSection(null)}>{t("btn.cancel")}</Btn>
-          <Btn variant="primary" size="md" onClick={handleCreateSection}>{t("btn.save")}</Btn>
+          <Btn onClick={() => setNewCategory(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleCreateCategory}>{t("btn.save")}</Btn>
         </>}
       >
         <div className="mb-2">
           <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
           <input
             type="text"
-            value={newSection ?? ""}
-            onChange={(e) => setNewSection(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreateSection()}
+            value={newCategory ?? ""}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()}
             autoFocus
             className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
           />
         </div>
+      </Modal>
+
+      {/* Delete category modal */}
+      <Modal open={!!pendingDelete} onClose={() => setPendingDelete(null)}
+        title={t("category.deleteTitle")}
+        description={t("category.deleteDesc").replace("{name}", pendingDelete?.name ?? "")}
+        actions={<>
+          <Btn onClick={() => setPendingDelete(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="danger" size="md" onClick={handleDeleteCategory}>{t("btn.delete")}</Btn>
+        </>}
+      />
+
+      {/* New expense modal */}
+      <Modal open={!!newExpense} onClose={() => setNewExpense(null)}
+        title="New expense"
+        actions={<>
+          <Btn onClick={() => setNewExpense(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleCreateExpense}>{t("btn.save")}</Btn>
+        </>}
+      >
+        {newExpense && (
+          <div className="space-y-3 mb-2">
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
+              <input
+                type="text"
+                value={newExpense.name}
+                onChange={(e) => setNewExpense((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
+                autoFocus
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              <input
+                type="number"
+                value={newExpense.amount || ""}
+                onChange={(e) => setNewExpense((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
+                placeholder="0"
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+              />
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Edit expense modal */}

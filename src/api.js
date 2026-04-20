@@ -2,41 +2,27 @@ const BASE = "http://localhost:8000";
 
 export const USER_ID = "default";
 
-const STATUS_FROM_API = {
-  "Pagado": "paid",
-  "No pagado": "unpaid",
-  "Programado": "scheduled",
-  "Verificar": "verify",
-};
-
-export const STATUS_TO_API = {
-  paid: "Pagado",
-  unpaid: "No pagado",
-  scheduled: "Programado",
-  verify: "Verificar",
-};
-
 function mapExpense(e) {
   return {
     id: e.id,
     name: e.expense,
     amount: e.value,
-    status: STATUS_FROM_API[e.status] ?? "unpaid",
-    section_id: e.section_id,
+    status: e.status ?? "unpaid",
+    category_id: e.category_id,
   };
 }
 
-export async function fetchSections() {
-  const res = await fetch(`${BASE}/sections`);
-  if (!res.ok) throw new Error("Failed to fetch sections");
+export async function fetchCategories() {
+  const res = await fetch(`${BASE}/categories`);
+  if (!res.ok) throw new Error("Failed to fetch categories");
   const data = await res.json();
-  return data.sections ?? data;
+  return data.categories ?? data;
 }
 
-// sectionId is optional — prep for month filter once backend adds date field
-export async function fetchExpenses(sectionId) {
-  const url = sectionId
-    ? `${BASE}/expenses?section_id=${encodeURIComponent(sectionId)}`
+// categoryId is optional — prep for month filter once backend adds date field
+export async function fetchExpenses(categoryId) {
+  const url = categoryId
+    ? `${BASE}/expenses?category_id=${encodeURIComponent(categoryId)}`
     : `${BASE}/expenses`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch expenses");
@@ -44,14 +30,29 @@ export async function fetchExpenses(sectionId) {
   return (data.expenses ?? data).map(mapExpense);
 }
 
-export async function createSection(name) {
-  const res = await fetch(`${BASE}/sections`, {
+export async function createCategory(name) {
+  const res = await fetch(`${BASE}/categories`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
-  if (!res.ok) throw new Error("Failed to create section");
+  if (!res.ok) throw new Error("Failed to create category");
   return res.json();
+}
+
+export async function createExpense(categoryId, name, amount) {
+  const res = await fetch(`${BASE}/expenses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category_id: categoryId, expense: name, value: amount, status: "unpaid", user_id: "00000000-0000-0000-0000-000000000000" }),
+  });
+  if (!res.ok) throw new Error("Failed to create expense");
+  return mapExpense(await res.json());
+}
+
+export async function deleteCategory(id) {
+  const res = await fetch(`${BASE}/categories/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete category");
 }
 
 export async function updateExpense(id, patch) {

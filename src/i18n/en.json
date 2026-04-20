@@ -17,6 +17,11 @@
   "expenses.transactions": "transactions",
   "expenses.categories": "categories",
   "expenses.finalBalance": "Final balance",
+  "expenses.newCategory": "New category",
+  "category.delete": "Delete category",
+  "category.deleteTitle": "Delete category",
+  "category.deleteDesc": "\"{name}\" and all its expenses will be permanently deleted.",
+  "btn.delete": "Delete",
 
   "btn.export": "Export",
   "btn.import": "Import",
