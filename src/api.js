@@ -112,37 +112,80 @@ export async function deleteSplitter(id) {
   if (!res.ok) throw new Error("Failed to delete splitter");
 }
 
-// ─── SPLITTER PEOPLE ──────────────────────────────────────────────────────────
+// ─── PEOPLE ───────────────────────────────────────────────────────────────────
 
-export async function fetchSplitterPeople() {
-  const url = `${BASE}/splitter/people?user_id=${USER_ID}`;
+export async function fetchPeople(feature = null) {
+  let url = `${BASE}/people?user_id=${USER_ID}`;
+  if (feature) {
+    url += `&feature=${encodeURIComponent(feature)}`;
+    url += `&check_features=${encodeURIComponent(feature)}`;
+  }
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch splitter people");
+  if (!res.ok) throw new Error("Failed to fetch people");
   const data = await res.json();
   return data.people ?? [];
 }
 
-export async function createSplitterPerson(name, color, share, position = 0) {
-  const res = await fetch(`${BASE}/splitter/people`, {
+export async function createPerson(name, color, share, position = 0) {
+  const res = await fetch(`${BASE}/people`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_id: USER_ID, name, color, share, position }),
   });
-  if (!res.ok) throw new Error("Failed to create splitter person");
+  if (!res.ok) throw new Error("Failed to create person");
   return res.json();
 }
 
-export async function updateSplitterPerson(id, patch) {
-  const res = await fetch(`${BASE}/splitter/people/${id}`, {
+export async function updatePerson(id, patch) {
+  const res = await fetch(`${BASE}/people/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  if (!res.ok) throw new Error("Failed to update splitter person");
+  if (!res.ok) throw new Error("Failed to update person");
   return res.json();
 }
 
-export async function deleteSplitterPerson(id) {
-  const res = await fetch(`${BASE}/splitter/people/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete splitter person");
+export async function deletePerson(id) {
+  const res = await fetch(`${BASE}/people/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete person");
+}
+
+// ─── DEBT ─────────────────────────────────────────────────────────────────────
+
+export async function fetchDebts() {
+  const res = await fetch(`${BASE}/debts?user_id=${USER_ID}`);
+  if (!res.ok) throw new Error("Failed to fetch debts");
+  const data = await res.json();
+  return data.debts ?? data;
+}
+
+export async function createDebtPayment(debtId, { amount, date, note }) {
+  const body = { amount, date };
+  if (note) body.note = note;
+  const res = await fetch(`${BASE}/debts/${debtId}/payments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Failed to create payment");
+  return res.json();
+}
+
+export async function deleteDebtPayment(debtId, paymentId) {
+  const res = await fetch(`${BASE}/debts/${debtId}/payments/${paymentId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete payment");
+}
+
+export async function createDebt({ description, amount, type, status = "pending", person_id = null, due_date = null }) {
+  const body = { user_id: USER_ID, description, amount, type, status };
+  if (person_id) body.person_id = person_id;
+  if (due_date) body.due_date = due_date;
+  const res = await fetch(`${BASE}/debts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Failed to create debt");
+  return res.json();
 }

@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Trash2, ChevronDown, Cloud,
-  Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check,
+  Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check, Loader2,
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchSplitterPeople, createSplitterPerson, updateSplitterPerson, deleteSplitterPerson } from "./api.js";
+import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, fetchDebts, createDebt, createDebtPayment, deleteDebtPayment } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -558,7 +558,6 @@ function Expenses() {
 }
 
 // ─── SPLITTER ─────────────────────────────────────────────────────────────────
-const STORAGE_SPLITTER_PEOPLE = "splitter-people";
 const SPLITTER_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#f43f5e", "#06b6d4"];
 
 function StatBadge({ label, value, color, big, locale, currency }) {
@@ -577,8 +576,8 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit,
     if (!person) return null;
     const initials = person.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
     return (
-      <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-        style={{ background: `${person.color}22`, color: person.color, border: `1px solid ${person.color}55` }}>
+      <span className="w-5 h-5 rounded-full grid place-items-center text-[9px] font-bold shrink-0"
+        style={{ background: `${person.color}22`, color: person.color, border: `1px solid ${person.color}55`, lineHeight: 1 }}>
         {initials}
       </span>
     );
@@ -634,7 +633,7 @@ function Splitter() {
       try {
         const [splitterData, peopleData] = await Promise.all([
           fetchSplitters(monthKey),
-          fetchSplitterPeople(),
+          fetchPeople("splitter"),
         ]);
         setItems(splitterData);
         setPeople(peopleData.length > 0 ? peopleData : []);
@@ -729,7 +728,7 @@ function Splitter() {
     const position = people.length;
     setPersonModal(null);
     try {
-      const created = await createSplitterPerson(name || t("splitter.newRow"), color, share, position);
+      const created = await createPerson(name || t("splitter.newRow"), color, share, position);
       setPeople((ps) => [...ps, created]);
     } catch (e) {
       console.error("Failed to create person:", e);
@@ -747,7 +746,7 @@ function Splitter() {
     setEditPersonModal(null);
     setPeople((ps) => ps.map((p) => p.id === id ? { ...p, name, color, share } : p));
     try {
-      await updateSplitterPerson(id, { name, color, share });
+      await updatePerson(id, { name, color, share });
     } catch (e) {
       console.error("Failed to update person:", e);
     }
@@ -759,7 +758,7 @@ function Splitter() {
     setEditPersonModal(null);
     setPeople((ps) => ps.filter((p) => p.id !== id));
     try {
-      await deleteSplitterPerson(id);
+      await deletePerson(id);
     } catch (e) {
       console.error("Failed to delete person:", e);
     }
@@ -881,17 +880,38 @@ function Splitter() {
                   style={{ background: `${p.color}14`, border: `1px solid ${p.color}33` }}
                 >
                   <div className="flex gap-2 items-center">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                      style={{ background: `${p.color}22`, color: p.color, border: `1px solid ${p.color}55` }}>
-                      {p.initials}
+                    <div style={{
+                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                        position: 'relative',
+                        background: `${p.color}22`, color: p.color, border: `1px solid ${p.color}55`
+                      }}>
+                      <span style={{
+                        position: 'absolute', top: '50%', left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        fontSize: 10, fontWeight: 'bold', lineHeight: 1,
+                        whiteSpace: 'nowrap'
+                      }}>{p.initials}</span>
                     </div>
                     <span className="flex-1 text-xs text-slate-800 dark:text-zinc-100 truncate">{p.name}</span>
                     <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">{p.share}%</span>
                   </div>
                   <div className="flex justify-between text-xs pl-9">
-                    <span className="text-slate-400 dark:text-zinc-600">{Math.round(p.pct * 100)}% of pool</span>
+                    <span className="text-slate-400 dark:text-zinc-600">{Math.round(p.pct * 100)}% {t("splitter.ofPool")}</span>
                     <span className="font-mono font-semibold" style={{ color: p.color }}>{fmt(p.amount, locale, currency)}</span>
                   </div>
+                  {p.features?.length > 0 && (
+                    <div className="flex gap-1 pl-9">
+                      {p.features.map((f) => (
+                        <span
+                          key={f}
+                          className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                          style={{ background: `${p.color}22`, color: p.color }}
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <button
@@ -1159,9 +1179,10 @@ function Splitter() {
             if (!person) return null;
             const initials = person.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
             return (
-              <div style={{ width: 20, height: 20, borderRadius: "50%", background: `${person.color}22`, border: `1px solid ${person.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: person.color, flexShrink: 0 }}>
-                {initials}
-              </div>
+              <svg width="20" height="20" style={{ flexShrink: 0 }}>
+                <circle cx="10" cy="10" r="9.5" fill={`${person.color}22`} stroke={`${person.color}55`} strokeWidth="1"/>
+                <text x="10" y="14" textAnchor="middle" fontSize="9" fontWeight="700" fill={person.color} fontFamily="inherit">{initials}</text>
+              </svg>
             );
           };
 
@@ -1240,16 +1261,15 @@ function Splitter() {
                 </div>
                 {perPerson.map((p, i) => (
                   <div key={p.id} style={{ background: `${p.color}14`, border: `1px solid ${p.color}33`, borderRadius: 10, padding: 10, marginTop: i > 0 ? 8 : 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: `${p.color}22`, border: `1px solid ${p.color}55`, textAlign: "center", fontSize: 9, fontWeight: 700, color: p.color, flexShrink: 0, paddingTop: 6 }}>
-                        {p.initials}
-                      </div>
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: textPrimary }}>{p.name}</span>
-                      <span style={{ fontSize: 11, color: textMuted }}>{p.share}%</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, marginLeft: 32 }}>
-                      <span style={{ fontSize: 11, color: textMuted }}>{Math.round(p.pct * 100)}% of pool</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: p.color }}>{fmt(p.amount, locale, currency)}</span>
+                    <svg width="100%" height="24" style={{ display: "block" }}>
+                      <circle cx="12" cy="12" r="11.5" fill={`${p.color}22`} stroke={`${p.color}55`} strokeWidth="1"/>
+                      <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="700" fill={p.color} fontFamily="inherit">{p.initials}</text>
+                      <text x="32" y="16" fontSize="12" fontWeight="500" fill={textPrimary} fontFamily="inherit">{p.name}</text>
+                      <text x="100%" y="16" textAnchor="end" fontSize="11" fill={textMuted} fontFamily="inherit">{p.share}%</text>
+                    </svg>
+                    <div style={{ display: "table", width: "100%", marginTop: 6, paddingLeft: 32 }}>
+                      <div style={{ display: "table-cell", fontSize: 11, color: textMuted }}>{Math.round(p.pct * 100)}% {t("splitter.ofPool")}</div>
+                      <div style={{ display: "table-cell", textAlign: "right", fontSize: 13, fontWeight: 600, color: p.color }}>{fmt(p.amount, locale, currency)}</div>
                     </div>
                   </div>
                 ))}
@@ -1259,13 +1279,30 @@ function Splitter() {
               {perPerson.length > 0 && pool > 0 && (
                 <div>
                   <div style={{ fontSize: 10, color: textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{t("splitter.distribution")}</div>
-                  <div style={{ borderRadius: 6, overflow: "hidden", display: "flex", border: `1px solid ${border}` }}>
-                    {perPerson.map((p) => (
-                      <div key={p.id} style={{ flex: p.amount > 0 ? p.amount : 0.0001, background: p.color, textAlign: "center", fontSize: 10, fontWeight: 600, color: "#fff", overflow: "hidden", whiteSpace: "nowrap", padding: "6px 6px" }}>
-                        {p.amount > pool * 0.08 ? `${p.name} · ${fmtShort(p.amount)}` : ""}
-                      </div>
-                    ))}
-                  </div>
+                  {(() => {
+                    const total = perPerson.reduce((s, p) => s + (p.amount > 0 ? p.amount : 0.0001), 0);
+                    let xPct = 0;
+                    return (
+                      <svg width="100%" height="28" style={{ borderRadius: 6, border: `1px solid ${border}`, display: "block" }}>
+                        {perPerson.map((p) => {
+                          const wPct = ((p.amount > 0 ? p.amount : 0.0001) / total) * 100;
+                          const cx = xPct + wPct / 2;
+                          const x = xPct;
+                          xPct += wPct;
+                          return (
+                            <g key={p.id}>
+                              <rect x={`${x}%`} y="0" width={`${wPct}%`} height="28" fill={p.color}/>
+                              {p.amount > pool * 0.08 && (
+                                <text x={`${cx}%`} y="14" textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="600" fill="#fff" fontFamily="inherit">
+                                  {p.name} · {fmtShort(p.amount)}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -1292,190 +1329,337 @@ function LoanDonut({ pct, color }) {
 }
 
 function DebtKiller() {
-  const { t, locale, currency, lang } = useI18n();
-  const today = new Date();
-  const [viewDate, setViewDate] = useState(today);
-  const [allMonths, setAllMonths] = useState({});
-  const [loaded, setLoaded] = useState(false);
-  const [pickerPos, setPickerPos] = useState(null);
-  const brandRef = useRef();
-  const pickerDropRef = useRef();
+  const { t, locale, currency } = useI18n();
+  const [debts, setDebts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
+  const [people, setPeople] = useState([]);
+  const [addingPayment, setAddingPayment] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+  const [formAmountFocused, setFormAmountFocused] = useState(false);
+  const [paymentAmountFocused, setPaymentAmountFocused] = useState(false);
+  const [savingPayments, setSavingPayments] = useState(new Set());
+  const [debtTab, setDebtTab] = useState("owed_to_me");
 
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get(STORAGE_FLUJO);
-        if (r?.value) setAllMonths(JSON.parse(r.value));
-        else setAllMonths({});
-      } catch { setAllMonths({}); }
-      setLoaded(true);
-    })();
+    setLoading(true);
+    Promise.all([fetchDebts(), fetchPeople()])
+      .then(([d, p]) => { setDebts(d); setPeople(p); })
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!pickerPos) return;
-    const handler = (e) => {
-      if (!brandRef.current?.contains(e.target) && !pickerDropRef.current?.contains(e.target)) setPickerPos(null);
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (addingPayment) setAddingPayment(null);
+      else if (showForm) setShowForm(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [pickerPos]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showForm, addingPayment]);
 
-  const openPicker = (e) => {
-    e.stopPropagation();
-    if (pickerPos) { setPickerPos(null); return; }
-    const r = brandRef.current.getBoundingClientRect();
-    setPickerPos({ top: r.bottom + 6, left: r.left });
+  const iOwe = debts.filter(d => d.type === "i_owe");
+  const owedMe = debts.filter(d => d.type === "owed_to_me");
+
+  const groupTotals = (items) => {
+    const total = items.reduce((s, d) => s + (d.amount ?? 0), 0);
+    const paid  = items.reduce((s, d) => s + (d.debt_payments ?? []).reduce((ps, p) => ps + (p.amount ?? 0), 0), 0);
+    return { total, paid, remaining: Math.max(0, total - paid) };
   };
-
-  const viewKey = toMonthKey(viewDate);
-  const monthData = allMonths[viewKey];
-  const prestamos = monthData?.prestamos || { conceptos: [], abonos: [] };
 
   const fmtShort = (n) => {
-    if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}K`;
-    return String(Math.round(n));
+    if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(n) >= 1_000) return `$${Math.round(n / 1_000)}k`;
+    return `$${Math.round(n)}`;
   };
 
-  const totalLoans = prestamos.conceptos.reduce((s, p) => s + (p.cantidad || 0), 0);
-  const totalAbonos = prestamos.abonos.reduce((s, a) => s + (a.valor || 0), 0);
-  const remaining = Math.max(0, totalLoans - totalAbonos);
-  const avgAbono = prestamos.abonos.length > 0 ? totalAbonos / prestamos.abonos.length : 0;
-  const monthsLeft = avgAbono > 0 ? Math.ceil(remaining / avgAbono) : 0;
+  const fmtPayDate = (iso) => {
+    if (!iso) return "";
+    const [, m, d] = iso.split("-");
+    const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    return `${parseInt(d)} ${months[parseInt(m) - 1]}`;
+  };
 
-  const loans = prestamos.conceptos.map((p, i) => {
-    const paid = prestamos.abonos[i]?.valor || 0;
-    return {
-      ...p,
-      paid,
-      abonos: prestamos.abonos[i] ? [prestamos.abonos[i]] : [],
-      remaining: Math.max(0, (p.cantidad || 0) - paid),
-      pct: p.cantidad > 0 ? (paid / p.cantidad) * 100 : 0,
-    };
-  });
+  async function handleCreate(e) {
+    e.preventDefault();
+    let personId = form.person_id || null;
+    if (form.person_id === "__new__" && form.newPersonName.trim()) {
+      const created = await createPerson(form.newPersonName.trim(), "#94a3b8", 50);
+      personId = created.id;
+      setPeople(prev => [...prev, created]);
+    }
+    await createDebt({
+      description: form.description,
+      amount: parseFloat(form.amount),
+      type: form.type,
+      person_id: personId,
+      due_date: form.due_date || null,
+    });
+    setForm({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
+    setShowForm(false);
+    setDebts(await fetchDebts());
+  }
 
-  const PAID_COLOR = "#34d399";
-  const UNPAID_COLOR = "#f87171";
-  const SCHED_COLOR = "#60a5fa";
+  async function handleAddPayment(e, debtId) {
+    e.preventDefault();
+    if (!paymentForm.amount) return;
+    setAddingPayment(null);
+    setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+    setSavingPayments(prev => new Set(prev).add(debtId));
+    await createDebtPayment(debtId, {
+      amount: parseFloat(paymentForm.amount),
+      date: paymentForm.date,
+      note: paymentForm.note || undefined,
+    });
+    setDebts(await fetchDebts());
+    setSavingPayments(prev => { const s = new Set(prev); s.delete(debtId); return s; });
+  }
 
-  if (!loaded) return (
+  async function handleDeletePayment(debtId, paymentId) {
+    await deleteDebtPayment(debtId, paymentId);
+    setDebts(await fetchDebts());
+  }
+
+  if (loading) return (
     <div className="flex items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
       <Cloud size={28} className="animate-pulse mr-2" /> {t("state.loading")}
     </div>
   );
+
+  const PAID_COLOR = "#34d399";
+  const UNPAID_COLOR = "#f87171";
+  const inputCls = "w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-50 placeholder-slate-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500";
+
+  const renderDebtCard = (d, index) => {
+    const payments = d.debt_payments ?? [];
+    const paid = payments.reduce((s, p) => s + (p.amount ?? 0), 0);
+    const remaining = Math.max(0, (d.amount ?? 0) - paid);
+    const pct = d.amount > 0 ? Math.min(100, (paid / d.amount) * 100) : 0;
+const person = people.find(p => p.id === d.person_id);
+
+    return (
+      <div key={d.id} className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4">
+        {/* Header: label + name + donut */}
+        <div className="flex justify-between items-start">
+          <div className="min-w-0 flex-1 pr-3">
+            <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">
+              {t("debt.loanLabel")}{index}
+              {person && <span className="ml-1.5">· {person.name}</span>}
+            </div>
+            <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 mt-1 leading-tight">{d.description}</div>
+            {d.due_date && (
+              <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mt-1">Due {d.due_date}</div>
+            )}
+          </div>
+          <div className="relative w-[110px] h-[110px] shrink-0">
+            <LoanDonut pct={pct} color={PAID_COLOR} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50">{Math.round(pct)}%</div>
+              <div className="text-[9px] text-slate-400 dark:text-zinc-500">{t("debt.paidLabel")}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: t("col.cantidad"), value: fmtShort(d.amount || 0), color: "#e4e4e7" },
+            { label: t("summary.paid"),  value: fmtShort(paid),          color: PAID_COLOR },
+            { label: t("debt.left"),     value: fmtShort(remaining),     color: UNPAID_COLOR },
+          ].map(({ label, value, color }) => (
+            <div key={label}>
+              <div className="text-[9px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">{label}</div>
+              <div className="text-sm font-bold font-mono mt-0.5" style={{ color }}>{value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Payment history */}
+        <div>
+          <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase mb-2">{t("debt.history")}</div>
+          <div className="flex flex-col gap-1.5">
+            {payments.length === 0 ? (
+              <div className="text-xs text-slate-400 dark:text-zinc-600 italic">{t("debt.noPayments")}</div>
+            ) : payments.map(pay => (
+              <div key={pay.id} className="flex items-center gap-2.5 bg-slate-50 dark:bg-zinc-800/60 rounded-lg px-3 py-2 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PAID_COLOR }} />
+                <span className="flex-1 text-slate-700 dark:text-zinc-300">
+                  {t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}
+                </span>
+                <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{fmt(pay.amount, locale, currency)}</span>
+                <button onClick={() => handleDeletePayment(d.id, pay.id)}
+                  className="text-slate-300 dark:text-zinc-600 hover:text-red-400 transition-colors ml-1">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Add payment button */}
+        {savingPayments.has(d.id) ? (
+          <span className="flex items-center gap-1.5 text-xs font-mono text-slate-400 dark:text-zinc-500">
+            <Loader2 size={12} className="animate-spin" /> {t("sync.saving")}
+          </span>
+        ) : (
+          <button onClick={() => { setAddingPayment(d.id); setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" }); }}
+            className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors">
+            <Plus size={12} /> Add Payment
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
       {/* Header */}
       <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
         <div>
-          <button ref={brandRef} onClick={openPicker}
-            className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none">
-            {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
-            <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
-          </button>
+          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("flujo.loans")}</div>
           <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.debtKiller")}</div>
         </div>
+        <button onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">
+          <Plus size={13} /> {t("debt.newDebt")}
+        </button>
       </div>
 
-      {/* KPIs */}
-      <div className="px-6 pt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
-          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.totalDebt")}</div>
-          <div className="text-xl font-bold font-mono mt-1.5 text-slate-900 dark:text-zinc-50">{fmt(totalLoans, locale, currency)}</div>
-          <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{loans.length} {t("debt.activeLoans")}</div>
-        </div>
-        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
-          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("summary.paid")}</div>
-          <div className="text-xl font-bold font-mono mt-1.5" style={{ color: PAID_COLOR }}>{fmt(totalAbonos, locale, currency)}</div>
-          <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{totalLoans > 0 ? Math.round(totalAbonos / totalLoans * 100) : 0}% {t("debt.ofTotal")}</div>
-        </div>
-        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
-          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("flujo.restante")}</div>
-          <div className="text-xl font-bold font-mono mt-1.5" style={{ color: UNPAID_COLOR }}>{fmt(remaining, locale, currency)}</div>
-          <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{t("debt.toCollect")}</div>
-        </div>
-        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
-          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.projection")}</div>
-          <div className="text-xl font-bold font-mono mt-1.5" style={{ color: SCHED_COLOR }}>{monthsLeft > 0 ? `${monthsLeft} ${t("debt.months")}` : "—"}</div>
-          <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">
-            {avgAbono > 0 ? `${t("debt.atCurrentRate")} (${fmtShort(avgAbono)}${t("debt.perMonth")})` : t("debt.noPaymentsYet")}
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="px-6 pt-4 flex gap-1 border-b border-slate-200 dark:border-zinc-800">
+        {[
+          { key: "owed_to_me", label: t("debt.owedToMe"), count: owedMe.length },
+          { key: "i_owe",      label: t("debt.iOwe"),     count: iOwe.length },
+        ].map(tab => (
+          <button key={tab.key} onClick={() => setDebtTab(tab.key)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 text-xs font-mono font-semibold rounded-t-lg border-b-2 transition-colors",
+              debtTab === tab.key
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                : "border-transparent text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300"
+            )}>
+            {tab.label}
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.5 rounded-full font-mono",
+              debtTab === tab.key
+                ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400"
+                : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500"
+            )}>{tab.count}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Empty state */}
-      {loans.length === 0 && (
-        <div className="text-center py-16 px-6">
-          <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("debt.noLoans")}</p>
-        </div>
-      )}
-
-      {/* Loan cards */}
-      {loans.length > 0 && (
-        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {loans.map((l, i) => (
-            <div key={l.id || i} className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4">
-              {/* Header + donut */}
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">{t("debt.loanLabel")}{i + 1}</div>
-                  <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 mt-1">{l.nombre || "—"}</div>
-                </div>
-                <div className="relative w-[110px] h-[110px] shrink-0">
-                  <LoanDonut pct={l.pct} color={PAID_COLOR} />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50">{Math.round(l.pct)}%</div>
-                    <div className="text-[9px] text-slate-400 dark:text-zinc-500">{t("debt.paidLabel")}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: t("col.cantidad"), value: fmtShort(l.cantidad || 0), color: "#e4e4e7" },
-                  { label: t("summary.paid"), value: fmtShort(l.paid), color: PAID_COLOR },
-                  { label: t("debt.left"), value: fmtShort(l.remaining), color: UNPAID_COLOR },
-                ].map(({ label, value, color }) => (
-                  <div key={label}>
-                    <div className="text-[9px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">{label}</div>
-                    <div className="text-sm font-bold font-mono mt-0.5" style={{ color }}>{value}</div>
+      {/* Debt cards */}
+      <div className="p-4 pb-6 flex flex-col gap-4">
+        {(() => {
+          const isOwedToMe = debtTab === "owed_to_me";
+          const items = isOwedToMe ? owedMe : iOwe;
+          const { total, paid, remaining } = groupTotals(items);
+          const kpis = isOwedToMe
+            ? [
+                { label: t("debt.totalToCollect"), value: fmt(total, locale, currency),     color: "#e4e4e7",   sub: `${items.length} ${t("debt.activeLoans")}` },
+                { label: t("debt.collected"),      value: fmt(paid, locale, currency),      color: PAID_COLOR,  sub: `${total > 0 ? Math.round(paid / total * 100) : 0}% ${t("debt.ofTotal")}` },
+                { label: t("debt.toReceive"),      value: fmt(remaining, locale, currency), color: "#60a5fa",   sub: t("debt.toCollect") },
+              ]
+            : [
+                { label: t("debt.totalDebt"), value: fmt(total, locale, currency),     color: UNPAID_COLOR, sub: `${items.length} ${t("debt.activeLoans")}` },
+                { label: t("summary.paid"),   value: fmt(paid, locale, currency),      color: PAID_COLOR,   sub: `${total > 0 ? Math.round(paid / total * 100) : 0}% ${t("debt.ofTotal")}` },
+                { label: t("flujo.restante"), value: fmt(remaining, locale, currency), color: UNPAID_COLOR, sub: t("debt.toCollect") },
+              ];
+          return (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                {kpis.map(k => (
+                  <div key={k.label} className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
+                    <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{k.label}</div>
+                    <div className="text-lg font-bold font-mono mt-1.5" style={{ color: k.color }}>{k.value}</div>
+                    <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{k.sub}</div>
                   </div>
                 ))}
               </div>
-
-              {/* Abono history */}
-              <div>
-                <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase mb-2">{t("debt.history")}</div>
-                <div className="flex flex-col gap-1.5">
-                  {l.abonos.length === 0 ? (
-                    <div className="text-xs text-slate-400 dark:text-zinc-600 italic">{t("debt.noPayments")}</div>
-                  ) : l.abonos.map((a, j) => (
-                    <div key={j} className="flex items-center gap-2.5 bg-slate-50 dark:bg-zinc-800/60 rounded-lg px-3 py-2 text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PAID_COLOR }} />
-                      <span className="flex-1 text-slate-700 dark:text-zinc-300">{t("debt.payment")} · {a.fecha}</span>
-                      <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{fmt(a.valor, locale, currency)}</span>
-                    </div>
-                  ))}
-                  {monthsLeft > 0 && Array.from({ length: Math.min(3, monthsLeft) }).map((_, j) => (
-                    <div key={"p" + j} className="flex items-center gap-2.5 bg-slate-50 dark:bg-zinc-800/60 rounded-lg px-3 py-2 text-xs opacity-50 border border-dashed border-slate-200 dark:border-zinc-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-zinc-600 shrink-0" />
-                      <span className="flex-1 text-slate-400 dark:text-zinc-500">{t("debt.projected")} +{j + 1}</span>
-                      <span className="font-mono text-slate-400 dark:text-zinc-500">{fmtShort(avgAbono)}</span>
-                    </div>
-                  ))}
+              {items.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("debt.noLoans")}</p>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {items.map((d, i) => renderDebtCard(d, i + 1))}
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </div>
+
+      {/* Modal: New Debt */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowForm(false)}>
+          <form onSubmit={handleCreate} onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.newDebt")}</div>
+            <input required placeholder={t("debt.description")} value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} />
+            {formAmountFocused ? (
+              <input required type="number" min="0" step="any" autoFocus value={form.amount || ""}
+                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                onBlur={() => setFormAmountFocused(false)}
+                className={inputCls + " font-mono text-right"} />
+            ) : (
+              <input readOnly value={form.amount === "" ? "" : fmt(parseFloat(form.amount) || 0, locale, currency)}
+                onFocus={() => setFormAmountFocused(true)}
+                placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
+            )}
+            <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
+              <option value="i_owe">{t("debt.iOwe")}</option>
+              <option value="owed_to_me">{t("debt.owedToMe")}</option>
+            </select>
+            <select required value={form.person_id} onChange={e => setForm(f => ({ ...f, person_id: e.target.value, newPersonName: "" }))} className={inputCls}>
+              <option value="" disabled>{t("debt.selectPerson")}</option>
+              {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <option value="__new__">{t("debt.newPerson")}</option>
+            </select>
+            {form.person_id === "__new__" && (
+              <input required autoFocus placeholder={t("debt.personName")} value={form.newPersonName}
+                onChange={e => setForm(f => ({ ...f, newPersonName: e.target.value }))} className={inputCls} />
+            )}
+            <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className={inputCls} />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
+              <button type="button" onClick={() => setShowForm(false)}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
             </div>
-          ))}
+          </form>
         </div>
       )}
 
-      {pickerPos && (
-        <MonthYearPicker pos={pickerPos} dropRef={pickerDropRef} viewDate={viewDate}
-          onSelect={(d) => { setViewDate(d); setPickerPos(null); }} />
+      {/* Modal: Add Payment */}
+      {addingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAddingPayment(null)}>
+          <form onSubmit={e => handleAddPayment(e, addingPayment)} onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.addPayment")}</div>
+            {paymentAmountFocused ? (
+              <input required type="number" min="0" step="any" autoFocus value={paymentForm.amount || ""}
+                onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                onBlur={() => setPaymentAmountFocused(false)}
+                className={inputCls + " font-mono text-right"} />
+            ) : (
+              <input readOnly value={paymentForm.amount === "" ? "" : fmt(parseFloat(paymentForm.amount) || 0, locale, currency)}
+                onFocus={() => setPaymentAmountFocused(true)}
+                placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
+            )}
+            <input type="date" value={paymentForm.date}
+              onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+            <input placeholder={t("debt.noteOptional")} value={paymentForm.note}
+              onChange={e => setPaymentForm(f => ({ ...f, note: e.target.value }))} className={inputCls} />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
+              <button type="button" onClick={() => setAddingPayment(null)}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
