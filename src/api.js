@@ -172,6 +172,21 @@ export async function createDebtPayment(debtId, { amount, date, note }) {
   return res.json();
 }
 
+export async function distributePayment({ type, amount, date, note }) {
+  const res = await fetch(`${BASE}/debts/distribute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: USER_ID, type, amount, date, ...(note ? { note } : {}) }),
+  });
+  if (!res.ok) throw new Error("Failed to distribute payment");
+  return res.json();
+}
+
+export async function deleteDebt(debtId) {
+  const res = await fetch(`${BASE}/debts/${debtId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete debt");
+}
+
 export async function deleteDebtPayment(debtId, paymentId) {
   const res = await fetch(`${BASE}/debts/${debtId}/payments/${paymentId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete payment");

@@ -122,6 +122,11 @@
   "debt.personName": "Person name",
   "debt.addPayment": "Add Payment",
   "debt.noteOptional": "Note (optional)",
+  "debt.bulkPayment": "Distribute",
+  "debt.bulkPaymentTitle": "Distribute payment equally",
+  "debt.noActive": "No active debts to distribute to.",
+  "debt.paymentExceedsRemaining": "Payment exceeds remaining balance ({remaining}).",
+  "error.required": "This field is required.",
 
   "splitter.board": "Board",
   "splitter.neto": "Net",

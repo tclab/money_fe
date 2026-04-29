@@ -122,6 +122,11 @@
   "debt.personName": "Nombre de la persona",
   "debt.addPayment": "Agregar abono",
   "debt.noteOptional": "Nota (opcional)",
+  "debt.bulkPayment": "Distribuir",
+  "debt.bulkPaymentTitle": "Distribuir pago equitativamente",
+  "debt.noActive": "No hay deudas activas para distribuir.",
+  "debt.paymentExceedsRemaining": "El pago supera el saldo restante ({remaining}).",
+  "error.required": "Este campo es obligatorio.",
 
   "splitter.board": "Tablero",
   "splitter.neto": "Neto",

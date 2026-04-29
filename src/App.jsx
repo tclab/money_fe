@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, fetchDebts, createDebt, createDebtPayment, deleteDebtPayment } from "./api.js";
+import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, fetchDebts, createDebt, deleteDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -1334,13 +1334,19 @@ function DebtKiller() {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
+  const [formErrors, setFormErrors] = useState({});
   const [people, setPeople] = useState([]);
   const [addingPayment, setAddingPayment] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
   const [formAmountFocused, setFormAmountFocused] = useState(false);
   const [paymentAmountFocused, setPaymentAmountFocused] = useState(false);
   const [savingPayments, setSavingPayments] = useState(new Set());
+  const [paymentError, setPaymentError] = useState("");
   const [debtTab, setDebtTab] = useState("owed_to_me");
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkForm, setBulkForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+  const [bulkAmountFocused, setBulkAmountFocused] = useState(false);
+  const [confirmDeleteDebt, setConfirmDeleteDebt] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -1353,14 +1359,17 @@ function DebtKiller() {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (addingPayment) setAddingPayment(null);
-      else if (showForm) setShowForm(false);
+      else if (confirmDeleteDebt) setConfirmDeleteDebt(null);
+      else if (showBulkForm) setShowBulkForm(false);
+      else if (showForm) { setShowForm(false); setFormErrors({}); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showForm, addingPayment]);
+  }, [showForm, addingPayment, showBulkForm, confirmDeleteDebt]);
 
-  const iOwe = debts.filter(d => d.type === "i_owe");
-  const owedMe = debts.filter(d => d.type === "owed_to_me");
+  const byCreated = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+  const iOwe = debts.filter(d => d.type === "i_owe").sort(byCreated);
+  const owedMe = debts.filter(d => d.type === "owed_to_me").sort(byCreated);
 
   const groupTotals = (items) => {
     const total = items.reduce((s, d) => s + (d.amount ?? 0), 0);
@@ -1383,6 +1392,13 @@ function DebtKiller() {
 
   async function handleCreate(e) {
     e.preventDefault();
+    const errs = {};
+    if (!form.description.trim()) errs.description = t("error.required");
+    if (!form.amount) errs.amount = t("error.required");
+    if (!form.person_id) errs.person_id = t("error.required");
+    if (form.person_id === "__new__" && !form.newPersonName.trim()) errs.newPersonName = t("error.required");
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
+    setFormErrors({});
     let personId = form.person_id || null;
     if (form.person_id === "__new__" && form.newPersonName.trim()) {
       const created = await createPerson(form.newPersonName.trim(), "#94a3b8", 50);
@@ -1404,6 +1420,16 @@ function DebtKiller() {
   async function handleAddPayment(e, debtId) {
     e.preventDefault();
     if (!paymentForm.amount) return;
+    const debt = debts.find(d => d.id === debtId);
+    if (debt) {
+      const alreadyPaid = (debt.debt_payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
+      const remaining = Math.max(0, (debt.amount ?? 0) - alreadyPaid);
+      if (parseFloat(paymentForm.amount) > remaining) {
+        setPaymentError(t("debt.paymentExceedsRemaining").replace("{remaining}", fmt(remaining, locale, currency)));
+        return;
+      }
+    }
+    setPaymentError("");
     setAddingPayment(null);
     setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
     setSavingPayments(prev => new Set(prev).add(debtId));
@@ -1419,6 +1445,30 @@ function DebtKiller() {
   async function handleDeletePayment(debtId, paymentId) {
     await deleteDebtPayment(debtId, paymentId);
     setDebts(await fetchDebts());
+  }
+
+  async function handleDeleteDebt(debtId) {
+    await deleteDebt(debtId);
+    setConfirmDeleteDebt(null);
+    setDebts(await fetchDebts());
+  }
+
+  async function handleBulkPayment(e) {
+    e.preventDefault();
+    if (!bulkForm.amount) return;
+    const items = debtTab === "i_owe" ? iOwe : owedMe;
+    const active = items.filter(d => {
+      const paid = (d.debt_payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
+      return Math.max(0, (d.amount ?? 0) - paid) > 0;
+    });
+    if (active.length === 0) return;
+    const { amount, date, note } = bulkForm;
+    setShowBulkForm(false);
+    setBulkForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+    setSavingPayments(new Set(active.map(d => d.id)));
+    await distributePayment({ type: debtTab, amount: parseFloat(amount), date, note: note || undefined });
+    setDebts(await fetchDebts());
+    setSavingPayments(new Set());
   }
 
   if (loading) return (
@@ -1443,9 +1493,15 @@ const person = people.find(p => p.id === d.person_id);
         {/* Header: label + name + donut */}
         <div className="flex justify-between items-start">
           <div className="min-w-0 flex-1 pr-3">
-            <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">
-              {t("debt.loanLabel")}{index}
-              {person && <span className="ml-1.5">· {person.name}</span>}
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">
+                {t("debt.loanLabel")}{index}
+                {person && <span className="ml-1.5">· {person.name}</span>}
+              </div>
+              <button onClick={() => setConfirmDeleteDebt(d)}
+                className="text-slate-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 transition-colors">
+                <Trash2 size={13} />
+              </button>
             </div>
             <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 mt-1 leading-tight">{d.description}</div>
             {d.due_date && (
@@ -1503,8 +1559,9 @@ const person = people.find(p => p.id === d.person_id);
             <Loader2 size={12} className="animate-spin" /> {t("sync.saving")}
           </span>
         ) : (
-          <button onClick={() => { setAddingPayment(d.id); setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" }); }}
-            className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors">
+          <button onClick={() => { setAddingPayment(d.id); setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" }); setPaymentError(""); }}
+            disabled={remaining === 0}
+            className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
             <Plus size={12} /> Add Payment
           </button>
         )}
@@ -1520,10 +1577,16 @@ const person = people.find(p => p.id === d.person_id);
           <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("flujo.loans")}</div>
           <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.debtKiller")}</div>
         </div>
-        <button onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">
-          <Plus size={13} /> {t("debt.newDebt")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowBulkForm(v => !v)}
+            className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+            {t("debt.bulkPayment")}
+          </button>
+          <button onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">
+            <Plus size={13} /> {t("debt.newDebt")}
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1594,39 +1657,54 @@ const person = people.find(p => p.id === d.person_id);
 
       {/* Modal: New Debt */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setShowForm(false); setFormErrors({}); }}>
           <form onSubmit={handleCreate} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
             <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.newDebt")}</div>
-            <input required placeholder={t("debt.description")} value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} />
-            {formAmountFocused ? (
-              <input required type="number" min="0" step="any" autoFocus value={form.amount || ""}
-                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                onBlur={() => setFormAmountFocused(false)}
-                className={inputCls + " font-mono text-right"} />
-            ) : (
-              <input readOnly value={form.amount === "" ? "" : fmt(parseFloat(form.amount) || 0, locale, currency)}
-                onFocus={() => setFormAmountFocused(true)}
-                placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
-            )}
+            <div>
+              <input placeholder={t("debt.description")} value={form.description}
+                onChange={e => { setForm(f => ({ ...f, description: e.target.value })); setFormErrors(fe => ({ ...fe, description: "" })); }}
+                className={inputCls + (formErrors.description ? " border-red-400 focus:ring-red-400" : "")} />
+              {formErrors.description && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{formErrors.description}</p>}
+            </div>
+            <div>
+              {formAmountFocused ? (
+                <input type="number" min="0" step="any" autoFocus value={form.amount || ""}
+                  onChange={e => { setForm(f => ({ ...f, amount: e.target.value })); setFormErrors(fe => ({ ...fe, amount: "" })); }}
+                  onBlur={() => setFormAmountFocused(false)}
+                  className={inputCls + " font-mono text-right" + (formErrors.amount ? " border-red-400 focus:ring-red-400" : "")} />
+              ) : (
+                <input readOnly value={form.amount === "" ? "" : fmt(parseFloat(form.amount) || 0, locale, currency)}
+                  onFocus={() => setFormAmountFocused(true)}
+                  placeholder="0" className={inputCls + " font-mono text-right cursor-text" + (formErrors.amount ? " border-red-400" : "")} />
+              )}
+              {formErrors.amount && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{formErrors.amount}</p>}
+            </div>
             <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
               <option value="i_owe">{t("debt.iOwe")}</option>
               <option value="owed_to_me">{t("debt.owedToMe")}</option>
             </select>
-            <select required value={form.person_id} onChange={e => setForm(f => ({ ...f, person_id: e.target.value, newPersonName: "" }))} className={inputCls}>
-              <option value="" disabled>{t("debt.selectPerson")}</option>
-              {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              <option value="__new__">{t("debt.newPerson")}</option>
-            </select>
+            <div>
+              <select value={form.person_id} onChange={e => { setForm(f => ({ ...f, person_id: e.target.value, newPersonName: "" })); setFormErrors(fe => ({ ...fe, person_id: "", newPersonName: "" })); }}
+                className={inputCls + (formErrors.person_id ? " border-red-400 focus:ring-red-400" : "")}>
+                <option value="" disabled>{t("debt.selectPerson")}</option>
+                {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                <option value="__new__">{t("debt.newPerson")}</option>
+              </select>
+              {formErrors.person_id && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{formErrors.person_id}</p>}
+            </div>
             {form.person_id === "__new__" && (
-              <input required autoFocus placeholder={t("debt.personName")} value={form.newPersonName}
-                onChange={e => setForm(f => ({ ...f, newPersonName: e.target.value }))} className={inputCls} />
+              <div>
+                <input autoFocus placeholder={t("debt.personName")} value={form.newPersonName}
+                  onChange={e => { setForm(f => ({ ...f, newPersonName: e.target.value })); setFormErrors(fe => ({ ...fe, newPersonName: "" })); }}
+                  className={inputCls + (formErrors.newPersonName ? " border-red-400 focus:ring-red-400" : "")} />
+                {formErrors.newPersonName && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{formErrors.newPersonName}</p>}
+              </div>
             )}
             <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className={inputCls} />
             <div className="flex gap-2">
               <button type="submit" className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
-              <button type="button" onClick={() => setShowForm(false)}
+              <button type="button" onClick={() => { setShowForm(false); setFormErrors({}); }}
                 className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
             </div>
           </form>
@@ -1641,13 +1719,16 @@ const person = people.find(p => p.id === d.person_id);
             <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.addPayment")}</div>
             {paymentAmountFocused ? (
               <input required type="number" min="0" step="any" autoFocus value={paymentForm.amount || ""}
-                onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                onChange={e => { setPaymentForm(f => ({ ...f, amount: e.target.value })); setPaymentError(""); }}
                 onBlur={() => setPaymentAmountFocused(false)}
-                className={inputCls + " font-mono text-right"} />
+                className={inputCls + " font-mono text-right" + (paymentError ? " border-red-400 focus:ring-red-400" : "")} />
             ) : (
               <input readOnly value={paymentForm.amount === "" ? "" : fmt(parseFloat(paymentForm.amount) || 0, locale, currency)}
                 onFocus={() => setPaymentAmountFocused(true)}
-                placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
+                placeholder="0" className={inputCls + " font-mono text-right cursor-text" + (paymentError ? " border-red-400" : "")} />
+            )}
+            {paymentError && (
+              <p className="text-xs text-red-500 dark:text-red-400 -mt-1">{paymentError}</p>
             )}
             <input type="date" value={paymentForm.date}
               onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
@@ -1659,6 +1740,54 @@ const person = people.find(p => p.id === d.person_id);
                 className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Modal: Bulk Payment */}
+      {showBulkForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowBulkForm(false)}>
+          <form onSubmit={handleBulkPayment} onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.bulkPaymentTitle")}</div>
+            {bulkAmountFocused ? (
+              <input required type="number" min="0" step="any" autoFocus value={bulkForm.amount || ""}
+                onChange={e => setBulkForm(f => ({ ...f, amount: e.target.value }))}
+                onBlur={() => setBulkAmountFocused(false)}
+                className={inputCls + " font-mono text-right"} />
+            ) : (
+              <input readOnly value={bulkForm.amount === "" ? "" : fmt(parseFloat(bulkForm.amount) || 0, locale, currency)}
+                onFocus={() => setBulkAmountFocused(true)}
+                placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
+            )}
+            <input type="date" value={bulkForm.date}
+              onChange={e => setBulkForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+            <input placeholder={t("debt.noteOptional")} value={bulkForm.note}
+              onChange={e => setBulkForm(f => ({ ...f, note: e.target.value }))} className={inputCls} />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
+              <button type="button" onClick={() => setShowBulkForm(false)}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: Confirm Delete Debt */}
+      {confirmDeleteDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmDeleteDebt(null)}>
+          <div onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-4 shadow-xl">
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("expense.deleteTitle")}</div>
+            <p className="text-sm text-slate-700 dark:text-zinc-300">
+              {t("expense.deleteDesc").replace("{name}", confirmDeleteDebt.description)}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => handleDeleteDebt(confirmDeleteDebt.id)}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors">{t("btn.delete")}</button>
+              <button onClick={() => setConfirmDeleteDebt(null)}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
