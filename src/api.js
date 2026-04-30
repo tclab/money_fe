@@ -153,8 +153,10 @@ export async function deletePerson(id) {
 
 // ─── DEBT ─────────────────────────────────────────────────────────────────────
 
-export async function fetchDebts() {
-  const res = await fetch(`${BASE}/debts?user_id=${USER_ID}`);
+export async function fetchDebts({ personId } = {}) {
+  let url = `${BASE}/debts?user_id=${USER_ID}`;
+  if (personId) url += `&person_id=${encodeURIComponent(personId)}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch debts");
   const data = await res.json();
   return data.debts ?? data;
@@ -172,11 +174,11 @@ export async function createDebtPayment(debtId, { amount, date, note }) {
   return res.json();
 }
 
-export async function distributePayment({ type, amount, date, note }) {
+export async function distributePayment({ type, amount, date, note, person_id }) {
   const res = await fetch(`${BASE}/debts/distribute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: USER_ID, type, amount, date, ...(note ? { note } : {}) }),
+    body: JSON.stringify({ user_id: USER_ID, type, amount, date, ...(note ? { note } : {}), ...(person_id ? { person_id } : {}) }),
   });
   if (!res.ok) throw new Error("Failed to distribute payment");
   return res.json();

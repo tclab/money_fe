@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Trash2, ChevronDown, Cloud,
-  Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check, Loader2,
+  Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check, Loader2, ImageDown,
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
@@ -1329,9 +1329,14 @@ function LoanDonut({ pct, color }) {
 }
 
 function DebtKiller() {
-  const { t, locale, currency } = useI18n();
+  const { t, locale, currency, theme } = useI18n();
   const [debts, setDebts] = useState([]);
+  const [availablePersons, setAvailablePersons] = useState([]);
+  const [debtPersonFilter, setDebtPersonFilter] = useState(null);
   const [loading, setLoading] = useState(false);
+  const reportRef = useRef(null);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportGenerating, setReportGenerating] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
   const [formErrors, setFormErrors] = useState({});
@@ -1344,23 +1349,85 @@ function DebtKiller() {
   const [paymentError, setPaymentError] = useState("");
   const [debtTab, setDebtTab] = useState("owed_to_me");
   const [showBulkForm, setShowBulkForm] = useState(false);
-  const [bulkForm, setBulkForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+  const [bulkForm, setBulkForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "", person_id: "" });
   const [bulkAmountFocused, setBulkAmountFocused] = useState(false);
+  const [bulkError, setBulkError] = useState("");
   const [confirmDeleteDebt, setConfirmDeleteDebt] = useState(null);
+
+  async function refreshDebts(personId = null) {
+    const [filtered, all] = await Promise.all([
+      fetchDebts({ personId: personId || undefined }),
+      fetchDebts(),
+    ]);
+    setDebts(filtered);
+    const type = debtTab === "owed_to_me" ? "owed_to_me" : "i_owe";
+    const ids = [...new Set(all.filter(d => d.type === type).map(d => d.person_id).filter(Boolean))];
+    setAvailablePersons(ids);
+    if (debtPersonFilter && !ids.includes(debtPersonFilter)) setDebtPersonFilter(null);
+  }
 
   useEffect(() => {
     setLoading(true);
     Promise.all([fetchDebts(), fetchPeople()])
-      .then(([d, p]) => { setDebts(d); setPeople(p); })
+      .then(([d, p]) => {
+        setDebts(d);
+        setPeople(p);
+        const type = "owed_to_me";
+        const ids = [...new Set(d.filter(x => x.type === type).map(x => x.person_id).filter(Boolean))];
+        setAvailablePersons(ids);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    setDebtPersonFilter(null);
+    fetchDebts().then(all => {
+      const type = debtTab === "owed_to_me" ? "owed_to_me" : "i_owe";
+      const ids = [...new Set(all.filter(d => d.type === type).map(d => d.person_id).filter(Boolean))];
+      setAvailablePersons(ids);
+    });
+  }, [debtTab]);
+
+  useEffect(() => {
+    fetchDebts({ personId: debtPersonFilter || undefined }).then(setDebts);
+  }, [debtPersonFilter]);
+
+  useEffect(() => {
+    if (!reportTarget) return;
+    (async () => {
+      setReportGenerating(true);
+      try {
+        if (!window.html2canvas) {
+          const script = document.createElement("script");
+          script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+          await new Promise((res, rej) => { script.onload = res; script.onerror = rej; document.head.appendChild(script); });
+        }
+        await new Promise(r => setTimeout(r, 150));
+        const bgColor = theme === "dark" ? "#18181b" : "#f8fafc";
+        const canvas = await window.html2canvas(reportRef.current, { backgroundColor: bgColor, scale: 2 });
+        canvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `reporte-${(reportTarget.person?.name ?? debtTab).toLowerCase().replace(/\s+/g, "-")}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }, "image/png");
+      } catch (e) {
+        console.error("Report capture failed:", e);
+      } finally {
+        setReportTarget(null);
+        setReportGenerating(false);
+      }
+    })();
+  }, [reportTarget]);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (addingPayment) setAddingPayment(null);
       else if (confirmDeleteDebt) setConfirmDeleteDebt(null);
-      else if (showBulkForm) setShowBulkForm(false);
+      else if (showBulkForm) closeBulkForm();
       else if (showForm) { setShowForm(false); setFormErrors({}); }
     };
     window.addEventListener("keydown", onKey);
@@ -1414,7 +1481,7 @@ function DebtKiller() {
     });
     setForm({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
     setShowForm(false);
-    setDebts(await fetchDebts());
+    await refreshDebts(debtPersonFilter);
   }
 
   async function handleAddPayment(e, debtId) {
@@ -1438,19 +1505,30 @@ function DebtKiller() {
       date: paymentForm.date,
       note: paymentForm.note || undefined,
     });
-    setDebts(await fetchDebts());
+    await refreshDebts(debtPersonFilter);
     setSavingPayments(prev => { const s = new Set(prev); s.delete(debtId); return s; });
   }
 
   async function handleDeletePayment(debtId, paymentId) {
     await deleteDebtPayment(debtId, paymentId);
-    setDebts(await fetchDebts());
+    await refreshDebts(debtPersonFilter);
   }
 
   async function handleDeleteDebt(debtId) {
     await deleteDebt(debtId);
     setConfirmDeleteDebt(null);
-    setDebts(await fetchDebts());
+    await refreshDebts(debtPersonFilter);
+  }
+
+  function handleReport() {
+    const person = debtPersonFilter ? people.find(p => p.id === debtPersonFilter) : null;
+    setReportTarget({ person, debts });
+  }
+
+  function closeBulkForm() {
+    setShowBulkForm(false);
+    setBulkError("");
+    setBulkForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "", person_id: "" });
   }
 
   async function handleBulkPayment(e) {
@@ -1458,16 +1536,28 @@ function DebtKiller() {
     if (!bulkForm.amount) return;
     const items = debtTab === "i_owe" ? iOwe : owedMe;
     const active = items.filter(d => {
+      if (bulkForm.person_id && d.person_id !== bulkForm.person_id) return false;
       const paid = (d.debt_payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
       return Math.max(0, (d.amount ?? 0) - paid) > 0;
     });
-    if (active.length === 0) return;
-    const { amount, date, note } = bulkForm;
-    setShowBulkForm(false);
-    setBulkForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+    if (active.length === 0) {
+      setBulkError(t("debt.noActive"));
+      return;
+    }
+    const totalRemaining = active.reduce((s, d) => {
+      const paid = (d.debt_payments ?? []).reduce((ps, p) => ps + (p.amount ?? 0), 0);
+      return s + Math.max(0, (d.amount ?? 0) - paid);
+    }, 0);
+    const parsedAmount = parseFloat(bulkForm.amount);
+    if (parsedAmount > totalRemaining) {
+      setBulkError(t("debt.paymentExceedsRemaining").replace("{remaining}", fmt(totalRemaining, locale, currency)));
+      return;
+    }
+    const { amount, date, note, person_id } = bulkForm;
+    closeBulkForm();
     setSavingPayments(new Set(active.map(d => d.id)));
-    await distributePayment({ type: debtTab, amount: parseFloat(amount), date, note: note || undefined });
-    setDebts(await fetchDebts());
+    await distributePayment({ type: debtTab, amount: parsedAmount, date, note: note || undefined, person_id: person_id || undefined });
+    await refreshDebts(debtPersonFilter);
     setSavingPayments(new Set());
   }
 
@@ -1578,6 +1668,10 @@ const person = people.find(p => p.id === d.person_id);
           <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.debtKiller")}</div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleReport} disabled={reportGenerating || debts.length === 0}
+            className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40">
+            <ImageDown size={13} /> {reportGenerating ? "..." : t("debt.report")}
+          </button>
           <button onClick={() => setShowBulkForm(v => !v)}
             className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
             {t("debt.bulkPayment")}
@@ -1612,6 +1706,34 @@ const person = people.find(p => p.id === d.person_id);
           </button>
         ))}
       </div>
+
+      {/* Person filter pills */}
+      {availablePersons.length > 1 && (
+        <div className="flex gap-2 flex-wrap px-4 pt-3">
+          <button onClick={() => setDebtPersonFilter(null)}
+            className={cn("text-xs font-mono px-3 py-1 rounded-full border transition-colors",
+              !debtPersonFilter
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
+                : "border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300"
+            )}>
+            {t("btn.all")}
+          </button>
+          {availablePersons.map(pid => {
+            const person = people.find(p => p.id === pid);
+            if (!person) return null;
+            return (
+              <button key={pid} onClick={() => setDebtPersonFilter(pid)}
+                className={cn("text-xs font-mono px-3 py-1 rounded-full border transition-colors",
+                  debtPersonFilter === pid
+                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
+                    : "border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300"
+                )}>
+                {person.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Debt cards */}
       <div className="p-4 pb-6 flex flex-col gap-4">
@@ -1745,13 +1867,13 @@ const person = people.find(p => p.id === d.person_id);
 
       {/* Modal: Bulk Payment */}
       {showBulkForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowBulkForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeBulkForm}>
           <form onSubmit={handleBulkPayment} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
             <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.bulkPaymentTitle")}</div>
             {bulkAmountFocused ? (
               <input required type="number" min="0" step="any" autoFocus value={bulkForm.amount || ""}
-                onChange={e => setBulkForm(f => ({ ...f, amount: e.target.value }))}
+                onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, amount: e.target.value })); }}
                 onBlur={() => setBulkAmountFocused(false)}
                 className={inputCls + " font-mono text-right"} />
             ) : (
@@ -1759,13 +1881,20 @@ const person = people.find(p => p.id === d.person_id);
                 onFocus={() => setBulkAmountFocused(true)}
                 placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
             )}
+            {bulkError && <p className="text-xs text-red-500">{bulkError}</p>}
             <input type="date" value={bulkForm.date}
               onChange={e => setBulkForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+            {people.length > 0 && (
+              <select value={bulkForm.person_id} onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, person_id: e.target.value })); }} className={inputCls}>
+                <option value="">{t("debt.personOptional")}</option>
+                {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            )}
             <input placeholder={t("debt.noteOptional")} value={bulkForm.note}
               onChange={e => setBulkForm(f => ({ ...f, note: e.target.value }))} className={inputCls} />
             <div className="flex gap-2">
               <button type="submit" className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
-              <button type="button" onClick={() => setShowBulkForm(false)}
+              <button type="button" onClick={closeBulkForm}
                 className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
             </div>
           </form>
@@ -1790,6 +1919,92 @@ const person = people.find(p => p.id === d.person_id);
           </div>
         </div>
       )}
+
+      {/* Hidden off-screen report div for html2canvas capture */}
+      {reportTarget && (() => {
+        const isDark = theme === "dark";
+        const rp = isDark
+          ? { bg: "#18181b", card: "#27272a", row: "#1f1f23", border: "#3f3f46", text: "#f4f4f5", muted: "#71717a", sub: "#52525b" }
+          : { bg: "#f8fafc", card: "#ffffff",  row: "#f1f5f9", border: "#e2e8f0", text: "#0f172a", muted: "#94a3b8", sub: "#cbd5e1" };
+        const { total, paid: totalPaid, remaining: totalRem } = groupTotals(reportTarget.debts);
+        const overallPct = total > 0 ? Math.round(totalPaid / total * 100) : 0;
+        return (
+          <div ref={reportRef} style={{ position: "fixed", top: -9999, left: -9999, width: 600, background: rp.bg, padding: 24, fontFamily: "ui-monospace, monospace" }}>
+            <div style={{ color: rp.muted, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>
+              {reportTarget.person ? reportTarget.person.name : t(debtTab === "owed_to_me" ? "debt.owedToMe" : "debt.iOwe")} · {new Date().toLocaleDateString()}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+              {[
+                { label: t("debt.totalToCollect"), value: fmt(total, locale, currency),     color: isDark ? "#e4e4e7" : "#0f172a", sub: `${reportTarget.debts.length} ${t("debt.activeLoans")}` },
+                { label: t("debt.collected"),      value: fmt(totalPaid, locale, currency), color: "#34d399", sub: `${overallPct}% ${t("debt.ofTotal")}` },
+                { label: t("debt.toReceive"),      value: fmt(totalRem, locale, currency),  color: "#60a5fa", sub: t("debt.toCollect") },
+              ].map(k => (
+                <div key={k.label} style={{ background: rp.card, borderRadius: 12, padding: "12px 16px", border: `1px solid ${rp.border}` }}>
+                  <div style={{ color: rp.muted, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" }}>{k.label}</div>
+                  <div style={{ color: k.color, fontSize: 18, fontWeight: 700, marginTop: 6 }}>{k.value}</div>
+                  <div style={{ color: rp.sub, fontSize: 9, marginTop: 4 }}>{k.sub}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {reportTarget.debts.map((d, i) => {
+                const payments = d.debt_payments ?? [];
+                const paidAmt = payments.reduce((s, p) => s + (p.amount ?? 0), 0);
+                const rem = Math.max(0, (d.amount ?? 0) - paidAmt);
+                const pct = d.amount > 0 ? Math.min(100, (paidAmt / d.amount) * 100) : 0;
+                const r = 44, cx = 55, cy = 55, sw = 8, circ = 2 * Math.PI * r;
+                return (
+                  <div key={d.id} style={{ background: rp.card, border: `1px solid ${rp.border}`, borderRadius: 16, padding: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                      <div>
+                        <div style={{ color: rp.muted, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                          {t("debt.loanLabel")}{i + 1}{reportTarget.person ? ` · ${reportTarget.person.name.toUpperCase()}` : ""}
+                        </div>
+                        <div style={{ color: rp.text, fontSize: 18, fontWeight: 700, marginTop: 4 }}>{d.description}</div>
+                      </div>
+                      <svg width={110} height={110} style={{ flexShrink: 0 }}>
+                        <g transform={`rotate(-90 ${cx} ${cy})`}>
+                          <circle cx={cx} cy={cy} r={r} fill="none" stroke={rp.border} strokeWidth={sw} />
+                          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#34d399" strokeWidth={sw}
+                            strokeDasharray={`${(pct / 100) * circ} ${circ}`} strokeLinecap="round" />
+                        </g>
+                        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                          style={{ fill: rp.text, fontSize: 14, fontWeight: 700 }}>
+                          {Math.round(pct)}%
+                        </text>
+                        <text x={cx} y={cy + 14} textAnchor="middle"
+                          style={{ fill: rp.muted, fontSize: 8 }}>
+                          {t("debt.paidLabel")}
+                        </text>
+                      </svg>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                      {[
+                        { label: t("col.cantidad"), value: fmtShort(d.amount || 0), color: isDark ? "#e4e4e7" : "#0f172a" },
+                        { label: t("summary.paid"),  value: fmtShort(paidAmt),       color: "#34d399" },
+                        { label: t("debt.left"),     value: fmtShort(rem),           color: "#f87171" },
+                      ].map(s => (
+                        <div key={s.label}>
+                          <div style={{ color: rp.muted, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" }}>{s.label}</div>
+                          <div style={{ color: s.color, fontSize: 13, fontWeight: 700, marginTop: 2 }}>{s.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ color: rp.muted, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>{t("debt.history")}</div>
+                    {payments.map(pay => (
+                      <div key={pay.id} style={{ background: rp.row, borderRadius: 8, padding: "6px 12px", marginBottom: 4, fontSize: 11, lineHeight: "20px" }}>
+                        <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#34d399", verticalAlign: "middle", marginRight: 8 }} />
+                        <span style={{ color: isDark ? "#d4d4d8" : "#334155", verticalAlign: "middle" }}>{t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}</span>
+                        <span style={{ color: rp.text, fontWeight: 600, float: "right", verticalAlign: "middle" }}>{fmt(pay.amount, locale, currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

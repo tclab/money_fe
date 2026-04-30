@@ -125,6 +125,8 @@
   "debt.bulkPayment": "Distribute",
   "debt.bulkPaymentTitle": "Distribute payment equally",
   "debt.noActive": "No active debts to distribute to.",
+  "debt.report": "Report",
+  "btn.all": "All",
   "debt.paymentExceedsRemaining": "Payment exceeds remaining balance ({remaining}).",
   "error.required": "This field is required.",
 

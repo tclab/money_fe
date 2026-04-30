@@ -125,6 +125,8 @@
   "debt.bulkPayment": "Distribuir",
   "debt.bulkPaymentTitle": "Distribuir pago equitativamente",
   "debt.noActive": "No hay deudas activas para distribuir.",
+  "debt.report": "Reporte",
+  "btn.all": "Todos",
   "debt.paymentExceedsRemaining": "El pago supera el saldo restante ({remaining}).",
   "error.required": "Este campo es obligatorio.",
 
