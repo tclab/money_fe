@@ -143,5 +143,8 @@
   "splitter.distribution": "Distribución visual",
   "splitter.newRow": "Nuevo",
   "splitter.person1": "Persona 1",
-  "splitter.person2": "Persona 2"
+  "splitter.person2": "Persona 2",
+  "splitter.addExisting": "Agregar existente",
+  "splitter.createNew": "Crear nuevo",
+  "splitter.removeFromSplitter": "Quitar del splitter"
 }

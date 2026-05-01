@@ -12,22 +12,38 @@ function mapExpense(e) {
   };
 }
 
-export async function fetchCategories() {
-  const res = await fetch(`${BASE}/categories`);
+export async function fetchCategories(includeDeleted = false) {
+  const url = includeDeleted
+    ? `${BASE}/categories?include_deleted=true`
+    : `${BASE}/categories`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch categories");
   const data = await res.json();
   return data.categories ?? data;
 }
 
-// categoryId is optional — prep for month filter once backend adds date field
-export async function fetchExpenses(categoryId) {
-  const url = categoryId
-    ? `${BASE}/expenses?category_id=${encodeURIComponent(categoryId)}`
-    : `${BASE}/expenses`;
+export async function fetchExpenses(categoryId, month) {
+  const params = new URLSearchParams();
+  if (categoryId) params.set("category_id", categoryId);
+  if (month) params.set("month", month);
+  const url = `${BASE}/expenses${params.size ? "?" + params : ""}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch expenses");
   const data = await res.json();
   return (data.expenses ?? data).map(mapExpense);
+}
+
+export async function upsertExpenseStatus(expenseId, month, { status, value } = {}) {
+  const body = { expense_id: expenseId, month };
+  if (status !== undefined) body.status = status;
+  if (value !== undefined) body.value = value;
+  const res = await fetch(`${BASE}/expense-status`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("Failed to update expense status");
+  return res.json();
 }
 
 export async function createCategory(name) {
@@ -44,7 +60,7 @@ export async function createExpense(categoryId, name, amount) {
   const res = await fetch(`${BASE}/expenses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ category_id: categoryId, expense: name, value: amount, status: "unpaid", user_id: "00000000-0000-0000-0000-000000000000" }),
+    body: JSON.stringify({ category_id: categoryId, expense: name, value: amount, user_id: "00000000-0000-0000-0000-000000000000" }),
   });
   if (!res.ok) throw new Error("Failed to create expense");
   return mapExpense(await res.json());
@@ -77,16 +93,16 @@ export async function updateExpense(id, patch) {
 
 // ─── SPLITTER ─────────────────────────────────────────────────────────────────
 
-export async function fetchSplitters(month) {
-  const url = `${BASE}/splitter/items?user_id=${USER_ID}&month=${encodeURIComponent(month)}`;
+export async function fetchSplitters() {
+  const url = `${BASE}/splitter/items?user_id=${USER_ID}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch splitters");
   const data = await res.json();
   return data.splitters ?? [];
 }
 
-export async function createSplitter(month, type, label, value, position = 0, person_id = null) {
-  const body = { user_id: USER_ID, month, type, label, value, position };
+export async function createSplitter(type, label, value, position = 0, person_id = null) {
+  const body = { user_id: USER_ID, type, label, value, position };
   if (person_id) body.person_id = person_id;
   const res = await fetch(`${BASE}/splitter/items`, {
     method: "POST",
@@ -149,6 +165,16 @@ export async function updatePerson(id, patch) {
 export async function deletePerson(id) {
   const res = await fetch(`${BASE}/people/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete person");
+}
+
+export async function addPersonToFeature(personId, feature) {
+  const res = await fetch(`${BASE}/people/${personId}/features/${feature}`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to associate person");
+}
+
+export async function removePersonFromFeature(personId, feature) {
+  const res = await fetch(`${BASE}/people/${personId}/features/${feature}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to disassociate person");
 }
 
 // ─── DEBT ─────────────────────────────────────────────────────────────────────

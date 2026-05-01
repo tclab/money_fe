@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, fetchDebts, createDebt, deleteDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
+import { fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, addPersonToFeature, removePersonFromFeature, fetchDebts, createDebt, deleteDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -139,6 +139,53 @@ function StatusPicker({ status, onChange }) {
   );
 }
 
+function MonthYearPicker({ pos, dropRef, viewDate, onSelect }) {
+  const now = new Date();
+  const [year, setYear] = useState(viewDate.getFullYear());
+  const months = Array.from({ length: 12 }, (_, i) => i);
+  const years = Array.from({ length: now.getFullYear() - 2019 + 2 }, (_, i) => 2020 + i);
+
+  return (
+    <div
+      ref={dropRef}
+      style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-xl p-3 w-52"
+    >
+      <div className="mb-2">
+        <select
+          value={year}
+          onChange={(e) => setYear(Number(e.target.value))}
+          className="w-full text-xs font-mono font-bold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-0 rounded-lg px-2 py-1.5 outline-none cursor-pointer"
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-4 gap-1">
+        {months.map((m) => {
+          const label = new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(2000, m, 1)).toUpperCase();
+          const isActive = viewDate.getMonth() === m && viewDate.getFullYear() === year;
+          return (
+            <button
+              key={m}
+              onClick={() => onSelect(new Date(year, m, 1))}
+              className={cn(
+                "text-[10px] font-mono py-1.5 rounded-lg transition-colors",
+                isActive
+                  ? "bg-emerald-500 text-white font-bold"
+                  : "text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Expenses() {
   const { t, locale, currency, lang } = useI18n();
   const today = new Date();
@@ -158,19 +205,24 @@ function Expenses() {
   const brandRef = useRef();
   const pickerDropRef = useRef();
 
+  const monthKey = toMonthKey(viewDate);
+  const currentMonthKey = toMonthKey(today);
+  const isPastMonth = monthKey < currentMonthKey;
+
   useEffect(() => {
-    (async () => {
-      try {
-        const [secs, exps] = await Promise.all([fetchCategories(), fetchExpenses()]);
-        setCategories(secs);
-        setExpenses(exps);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    setLoading(true);
+    Promise.all([
+      fetchCategories(isPastMonth),
+      fetchExpenses(null, monthKey),
+    ]).then(([secs, exps]) => {
+      setCategories(secs);
+      setExpenses(exps);
+      setLoading(false);
+    }).catch((e) => {
+      setError(e.message);
+      setLoading(false);
+    });
+  }, [monthKey]);
 
   useEffect(() => {
     if (!pickerPos) return;
@@ -188,7 +240,6 @@ function Expenses() {
     setPickerPos({ top: r.bottom + 6, left: r.left });
   };
 
-  // TODO: pass month to fetchExpenses() once backend adds date field
   const grouped = categories.map((s) => ({
     ...s,
     items: expenses.filter((e) => e.category_id === s.id),
@@ -203,7 +254,7 @@ function Expenses() {
     const prev = expenses.find((e) => e.id === id);
     setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
     try {
-      await updateExpense(id, { status: newStatus });
+      await upsertExpenseStatus(id, monthKey, { status: newStatus });
     } catch {
       setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
     }
@@ -269,7 +320,10 @@ function Expenses() {
     setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount } : e));
     setEditing(null);
     try {
-      await updateExpense(editing.id, { expense: editing.name, value: editing.amount });
+      await Promise.all([
+        updateExpense(editing.id, { expense: editing.name }),
+        upsertExpenseStatus(editing.id, monthKey, { value: editing.amount }),
+      ]);
     } catch {
       setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount } : e));
     }
@@ -334,20 +388,24 @@ function Expenses() {
                       <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">
                         <span className="flex items-center gap-2">
                           {sec.name}
-                          <button
-                            onClick={() => setNewExpense({ category_id: sec.id, name: "", amount: 0 })}
-                            className="inline-flex items-center justify-center w-4 h-4 rounded text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
-                            title="Add expense"
-                          >
-                            <Plus size={10} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: sec.id, name: sec.name }); }}
-                            className="inline-flex items-center justify-center w-4 h-4 rounded text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
-                            title={t("category.delete")}
-                          >
-                            <Trash2 size={10} />
-                          </button>
+                          {!isPastMonth && (
+                            <button
+                              onClick={() => setNewExpense({ category_id: sec.id, name: "", amount: 0 })}
+                              className="inline-flex items-center justify-center w-4 h-4 rounded text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                              title="Add expense"
+                            >
+                              <Plus size={10} />
+                            </button>
+                          )}
+                          {!isPastMonth && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: sec.id, name: sec.name }); }}
+                              className="inline-flex items-center justify-center w-4 h-4 rounded text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                              title={t("category.delete")}
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          )}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
@@ -355,19 +413,21 @@ function Expenses() {
                     </tr>
                     {sec.items.map((e, i) => (
                       <tr key={e.id}
-                        onClick={() => setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
+                        onClick={() => !isPastMonth && setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
                         className={cn(
                           "border-b border-dashed border-slate-100 dark:border-zinc-800/60 transition-colors",
                           i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
-                          "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
+                          isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
                         )}>
                         <td className="py-1.5 px-3 w-8" onClick={(ev) => ev.stopPropagation()}>
-                          <button
-                            onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
-                            className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
-                          >
-                            <Trash2 size={10} />
-                          </button>
+                          {!isPastMonth && (
+                            <button
+                              onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
+                              className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          )}
                         </td>
                         <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
                         <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
@@ -406,14 +466,15 @@ function Expenses() {
       </div>
 
       {/* Add section */}
-      <button
-        onClick={() => setNewCategory("")}
-        className="mt-2 w-full border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-400 dark:text-zinc-600 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-600 text-xs font-mono py-2 transition flex items-center gap-1.5 justify-center"
-      >
-        <Plus size={11} /> {t("expenses.newCategory")}
-      </button>
+      {!isPastMonth && (
+        <button
+          onClick={() => setNewCategory("")}
+          className="mt-2 w-full border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-400 dark:text-zinc-600 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-600 text-xs font-mono py-2 transition flex items-center gap-1.5 justify-center"
+        >
+          <Plus size={11} /> {t("expenses.newCategory")}
+        </button>
+      )}
 
-      {/* Month/year picker — display only until backend adds date field */}
       {pickerPos && (
         <MonthYearPicker pos={pickerPos} dropRef={pickerDropRef} viewDate={viewDate}
           onSelect={(d) => { setViewDate(d); setPickerPos(null); }} />
@@ -616,13 +677,15 @@ function Splitter() {
 
   const [items, setItems] = useState([]);
   const [people, setPeople] = useState([]);
+  const [allPeople, setAllPeople] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [editModal, setEditModal] = useState(null);
   const [createModal, setCreateModal] = useState(null);
   const [amountFocused, setAmountFocused] = useState(false);
 
-  const [personModal, setPersonModal] = useState(null);
+  const [addPersonModal, setAddPersonModal] = useState(false);
+  const [personCreateForm, setPersonCreateForm] = useState(null);
   const [editPersonModal, setEditPersonModal] = useState(null);
   const [captureStatus, setCaptureStatus] = useState("idle");
   const captureRef = useRef(null);
@@ -631,20 +694,23 @@ function Splitter() {
     (async () => {
       setLoading(true);
       try {
-        const [splitterData, peopleData] = await Promise.all([
-          fetchSplitters(monthKey),
+        const [splitterData, peopleData, allPeopleData] = await Promise.all([
+          fetchSplitters(),
           fetchPeople("splitter"),
+          fetchPeople(),
         ]);
         setItems(splitterData);
         setPeople(peopleData.length > 0 ? peopleData : []);
+        setAllPeople(allPeopleData);
       } catch (e) {
         console.error("Failed to load splitter data:", e);
         setItems([]);
         setPeople([]);
+        setAllPeople([]);
       }
       setLoading(false);
     })();
-  }, [monthKey]);
+  }, []);
 
   const entradas = items.filter((i) => i.type === "income");
   const salidas = items.filter((i) => i.type === "expense");
@@ -666,6 +732,8 @@ function Splitter() {
     return { ...p, pct, amount: (pool * pct) - personDiscounts, discounts: personDiscounts, initials };
   });
 
+  const unlinkedPeople = allPeople.filter((p) => !people.find((q) => q.id === p.id));
+
   const openCreate = (type) => {
     setCreateModal({ type, label: "", value: 0, person_id: type === "discount" && people.length > 0 ? people[0].id : null });
     setAmountFocused(false);
@@ -677,7 +745,7 @@ function Splitter() {
     const position = items.filter((i) => i.type === type).length;
     setCreateModal(null);
     try {
-      const created = await createSplitter(monthKey, type, label || t("splitter.newRow"), value, position, type === "discount" ? person_id : null);
+      const created = await createSplitter(type, label || t("splitter.newRow"), value, position, type === "discount" ? person_id : null);
       setItems((xs) => [...xs, created]);
     } catch (e) {
       console.error("Failed to create splitter:", e);
@@ -716,20 +784,42 @@ function Splitter() {
     }
   };
 
-  const openCreatePerson = () => {
-    const idx = people.length;
+  const openAddPerson = () => {
+    const idx = allPeople.length;
     const color = SPLITTER_COLORS[idx % SPLITTER_COLORS.length];
-    setPersonModal({ name: "", color, share: 50 });
+    setAddPersonModal(true);
+    if (unlinkedPeople.length === 0) {
+      setPersonCreateForm({ name: "", color, share: 50 });
+    } else {
+      setPersonCreateForm(null);
+    }
+  };
+
+  const closeAddPersonModal = () => {
+    setAddPersonModal(false);
+    setPersonCreateForm(null);
+  };
+
+  const handleSelectPerson = async (person) => {
+    closeAddPersonModal();
+    setPeople((ps) => [...ps, person]);
+    try {
+      await addPersonToFeature(person.id, "splitter");
+    } catch (e) {
+      console.error("Failed to associate person:", e);
+    }
   };
 
   const handleCreatePerson = async () => {
-    if (!personModal) return;
-    const { name, color, share } = personModal;
-    const position = people.length;
-    setPersonModal(null);
+    if (!personCreateForm) return;
+    const { name, color, share } = personCreateForm;
+    const position = allPeople.length;
+    closeAddPersonModal();
     try {
       const created = await createPerson(name || t("splitter.newRow"), color, share, position);
+      await addPersonToFeature(created.id, "splitter");
       setPeople((ps) => [...ps, created]);
+      setAllPeople((ps) => [...ps, created]);
     } catch (e) {
       console.error("Failed to create person:", e);
     }
@@ -752,15 +842,15 @@ function Splitter() {
     }
   };
 
-  const handleDeletePerson = async () => {
+  const handleRemoveFromSplitter = async () => {
     if (!editPersonModal) return;
     const { id } = editPersonModal;
     setEditPersonModal(null);
     setPeople((ps) => ps.filter((p) => p.id !== id));
     try {
-      await deletePerson(id);
+      await removePersonFromFeature(id, "splitter");
     } catch (e) {
-      console.error("Failed to delete person:", e);
+      console.error("Failed to remove person from splitter:", e);
     }
   };
 
@@ -915,7 +1005,7 @@ function Splitter() {
                 </div>
               ))}
               <button
-                onClick={openCreatePerson}
+                onClick={openAddPerson}
                 className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center"
               >
                 <Plus size={11} /> {t("splitter.addPerson")}
@@ -1063,60 +1153,98 @@ function Splitter() {
         )}
       </Modal>
 
-      {/* Create person modal */}
-      <Modal open={!!personModal} onClose={() => setPersonModal(null)}
+      {/* Add person modal */}
+      <Modal open={addPersonModal} onClose={closeAddPersonModal}
         title={t("splitter.addPerson")}
         actions={<>
-          <Btn onClick={() => setPersonModal(null)}>{t("btn.cancel")}</Btn>
-          <Btn variant="primary" size="md" onClick={handleCreatePerson}>{t("btn.save")}</Btn>
+          <Btn onClick={closeAddPersonModal}>{t("btn.cancel")}</Btn>
+          {personCreateForm && <Btn variant="primary" size="md" onClick={handleCreatePerson}>{t("btn.save")}</Btn>}
         </>}
       >
-        {personModal && (
-          <div className="space-y-3 mb-2">
-            <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
-              <input
-                type="text"
-                value={personModal.name}
-                onChange={(e) => setPersonModal((p) => ({ ...p, name: e.target.value }))}
-                onKeyDown={(e) => e.key === "Enter" && handleCreatePerson()}
-                autoFocus
-                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
-              />
-            </div>
-            <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                value={personModal.share}
-                onChange={(e) => setPersonModal((p) => ({ ...p, share: parseInt(e.target.value) || 0 }))}
-                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-              />
-            </div>
-            <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
-              <div className="flex gap-2">
-                {SPLITTER_COLORS.map((c) => (
+        <div className="space-y-3 mb-2">
+          {unlinkedPeople.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">{t("splitter.addExisting")}</label>
+              {unlinkedPeople.map((p) => {
+                const initials = p.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
+                return (
                   <button
-                    key={c}
-                    onClick={() => setPersonModal((p) => ({ ...p, color: c }))}
-                    className="w-8 h-8 rounded-full border-2 transition-all"
-                    style={{ background: c, borderColor: personModal.color === c ? "#fff" : "transparent", boxShadow: personModal.color === c ? `0 0 0 2px ${c}` : "none" }}
-                  />
-                ))}
+                    key={p.id}
+                    onClick={() => handleSelectPerson(p)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700 transition-colors text-left w-full"
+                  >
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: `${p.color}22`, border: `1px solid ${p.color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: "bold", color: p.color, flexShrink: 0 }}>
+                      {initials}
+                    </div>
+                    <span className="text-sm text-slate-800 dark:text-zinc-100">{p.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {unlinkedPeople.length > 0 && !personCreateForm && (
+            <button
+              onClick={() => {
+                const idx = allPeople.length;
+                setPersonCreateForm({ name: "", color: SPLITTER_COLORS[idx % SPLITTER_COLORS.length], share: 50 });
+              }}
+              className="w-full border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center"
+            >
+              <Plus size={11} /> {t("splitter.createNew")}
+            </button>
+          )}
+
+          {personCreateForm && (
+            <div className={`space-y-3 ${unlinkedPeople.length > 0 ? "border-t border-slate-200 dark:border-zinc-700 pt-3" : ""}`}>
+              {unlinkedPeople.length > 0 && (
+                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">{t("splitter.createNew")}</label>
+              )}
+              <div>
+                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+                <input
+                  type="text"
+                  value={personCreateForm.name}
+                  onChange={(e) => setPersonCreateForm((p) => ({ ...p, name: e.target.value }))}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreatePerson()}
+                  autoFocus
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={personCreateForm.share}
+                  onChange={(e) => setPersonCreateForm((p) => ({ ...p, share: parseInt(e.target.value) || 0 }))}
+                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
+                <div className="flex gap-2">
+                  {SPLITTER_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setPersonCreateForm((p) => ({ ...p, color: c }))}
+                      className="w-8 h-8 rounded-full border-2 transition-all"
+                      style={{ background: c, borderColor: personCreateForm.color === c ? "#fff" : "transparent", boxShadow: personCreateForm.color === c ? `0 0 0 2px ${c}` : "none" }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </Modal>
 
       {/* Edit person modal */}
       <Modal open={!!editPersonModal} onClose={() => setEditPersonModal(null)}
         title={t("splitter.people")}
         actions={<>
-          <Btn variant="danger" onClick={handleDeletePerson}>{t("btn.delete")}</Btn>
+          <Btn variant="danger" onClick={handleRemoveFromSplitter}>{t("splitter.removeFromSplitter")}</Btn>
           <Btn onClick={() => setEditPersonModal(null)}>{t("btn.cancel")}</Btn>
           <Btn variant="primary" size="md" onClick={handleEditPerson}>{t("btn.save")}</Btn>
         </>}

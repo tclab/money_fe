@@ -143,5 +143,8 @@
   "splitter.distribution": "Visual distribution",
   "splitter.newRow": "New",
   "splitter.person1": "Person 1",
-  "splitter.person2": "Person 2"
+  "splitter.person2": "Person 2",
+  "splitter.addExisting": "Add existing",
+  "splitter.createNew": "Create new",
+  "splitter.removeFromSplitter": "Remove from splitter"
 }
