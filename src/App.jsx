@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Trash2, ChevronDown, Cloud,
+  Plus, Trash2, ChevronDown, Cloud, Pencil,
   Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check, Loader2, ImageDown,
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, addPersonToFeature, removePersonFromFeature, fetchDebts, createDebt, deleteDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
+import { fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, addPersonToFeature, removePersonFromFeature, fetchDebts, createDebt, deleteDebt, updateDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -1481,6 +1481,8 @@ function DebtKiller() {
   const [bulkAmountFocused, setBulkAmountFocused] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const [confirmDeleteDebt, setConfirmDeleteDebt] = useState(null);
+  const [editingDebt, setEditingDebt] = useState(null);
+  const [editAmountFocused, setEditAmountFocused] = useState(false);
 
   async function refreshDebts(personId = null) {
     const [filtered, all] = await Promise.all([
@@ -1554,13 +1556,14 @@ function DebtKiller() {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (addingPayment) setAddingPayment(null);
+      else if (editingDebt) setEditingDebt(null);
       else if (confirmDeleteDebt) setConfirmDeleteDebt(null);
       else if (showBulkForm) closeBulkForm();
       else if (showForm) { setShowForm(false); setFormErrors({}); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showForm, addingPayment, showBulkForm, confirmDeleteDebt]);
+  }, [showForm, addingPayment, showBulkForm, confirmDeleteDebt, editingDebt]);
 
   const byCreated = (a, b) => new Date(a.created_at) - new Date(b.created_at);
   const iOwe = debts.filter(d => d.type === "i_owe").sort(byCreated);
@@ -1648,6 +1651,19 @@ function DebtKiller() {
     await refreshDebts(debtPersonFilter);
   }
 
+  async function handleUpdateDebt() {
+    if (!editingDebt) return;
+    const patch = {
+      description: editingDebt.description,
+      amount: parseFloat(editingDebt.amount),
+      person_id: editingDebt.person_id || null,
+      due_date: editingDebt.due_date || null,
+    };
+    setEditingDebt(null);
+    await updateDebt(editingDebt.id, patch);
+    await refreshDebts(debtPersonFilter);
+  }
+
   function handleReport() {
     const person = debtPersonFilter ? people.find(p => p.id === debtPersonFilter) : null;
     setReportTarget({ person, debts });
@@ -1716,10 +1732,17 @@ const person = people.find(p => p.id === d.person_id);
                 {t("debt.loanLabel")}{index}
                 {person && <span className="ml-1.5">· {person.name}</span>}
               </div>
-              <button onClick={() => setConfirmDeleteDebt(d)}
-                className="text-slate-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 transition-colors">
-                <Trash2 size={13} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setEditingDebt({ id: d.id, description: d.description ?? "", amount: String(d.amount ?? ""), person_id: d.person_id ?? "", due_date: d.due_date ?? "" })}
+                  className="text-slate-300 dark:text-zinc-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
+                  <Pencil size={13} />
+                </button>
+                <button onClick={() => setConfirmDeleteDebt(d)}
+                  className="text-slate-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 transition-colors">
+                  <Trash2 size={13} />
+                </button>
+              </div>
             </div>
             <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 mt-1 leading-tight">{d.description}</div>
             {d.due_date && (
@@ -2043,6 +2066,49 @@ const person = people.find(p => p.id === d.person_id);
                 className="flex-1 py-2 text-sm font-semibold rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors">{t("btn.delete")}</button>
               <button onClick={() => setConfirmDeleteDebt(null)}
                 className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Debt */}
+      {editingDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditingDebt(null)}>
+          <div onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
+            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.editDebt")}</div>
+            <input
+              placeholder={t("debt.description")}
+              value={editingDebt.description}
+              onChange={e => setEditingDebt(v => ({ ...v, description: e.target.value }))}
+              className={inputCls}
+            />
+            {editAmountFocused ? (
+              <input type="number" min="0" step="any" autoFocus
+                value={editingDebt.amount}
+                onChange={e => setEditingDebt(v => ({ ...v, amount: e.target.value }))}
+                onBlur={() => setEditAmountFocused(false)}
+                className={inputCls + " font-mono text-right"} />
+            ) : (
+              <button type="button" onClick={() => setEditAmountFocused(true)}
+                className={inputCls + " font-mono text-right"}>
+                {editingDebt.amount ? fmt(parseFloat(editingDebt.amount), locale, currency) : <span className="text-slate-400 text-left block">0</span>}
+              </button>
+            )}
+            <select value={editingDebt.person_id}
+              onChange={e => setEditingDebt(v => ({ ...v, person_id: e.target.value }))}
+              className={inputCls}>
+              <option value="">{t("debt.personOptional")}</option>
+              {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <input type="date" value={editingDebt.due_date}
+              onChange={e => setEditingDebt(v => ({ ...v, due_date: e.target.value }))}
+              className={inputCls + " font-mono"} />
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditingDebt(null)}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+              <button onClick={handleUpdateDebt}
+                className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
             </div>
           </div>
         </div>

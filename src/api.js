@@ -215,6 +215,16 @@ export async function deleteDebt(debtId) {
   if (!res.ok) throw new Error("Failed to delete debt");
 }
 
+export async function updateDebt(debtId, patch) {
+  const res = await fetch(`${BASE}/debts/${debtId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error("Failed to update debt");
+  return res.json();
+}
+
 export async function deleteDebtPayment(debtId, paymentId) {
   const res = await fetch(`${BASE}/debts/${debtId}/payments/${paymentId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete payment");

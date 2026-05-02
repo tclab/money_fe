@@ -110,6 +110,7 @@
   "debt.payment": "Payment",
   "debt.projected": "Projected · month",
   "debt.newDebt": "New Debt",
+  "debt.editDebt": "Edit Debt",
   "debt.owedToMe": "Owed to Me",
   "debt.iOwe": "I Owe",
   "debt.totalToCollect": "Total to collect",

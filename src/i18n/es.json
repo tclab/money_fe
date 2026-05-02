@@ -110,6 +110,7 @@
   "debt.payment": "Abono",
   "debt.projected": "Proyectado · mes",
   "debt.newDebt": "Nueva deuda",
+  "debt.editDebt": "Editar deuda",
   "debt.owedToMe": "Me deben",
   "debt.iOwe": "Debo",
   "debt.totalToCollect": "Total a cobrar",
