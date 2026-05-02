@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import {
-  Plus, Trash2, ChevronDown, Cloud, Pencil,
+  Plus, Trash2, ChevronDown, Cloud, Pencil, GripVertical,
   Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, Camera, Check, Loader2, ImageDown,
 } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { cn } from "./lib/utils.js";
-import { fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, addPersonToFeature, removePersonFromFeature, fetchDebts, createDebt, deleteDebt, updateDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
+import { fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense, reorderExpenses, createCategory, createExpense, deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi, fetchSplitters, createSplitter, updateSplitter, deleteSplitter, fetchPeople, createPerson, updatePerson, deletePerson, addPersonToFeature, removePersonFromFeature, fetchDebts, createDebt, deleteDebt, updateDebt, distributePayment, createDebtPayment, deleteDebtPayment } from "./api.js";
 
 // ─── SHARED ───────────────────────────────────────────────────────────────────
 const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -329,6 +330,27 @@ function Expenses() {
     }
   };
 
+  const handleDragEnd = async (result) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+    if (source.droppableId !== destination.droppableId || source.index === destination.index) return;
+    const catId = source.droppableId;
+    const catExpenses = expenses.filter((e) => e.category_id === catId);
+    const reordered = [...catExpenses];
+    const [moved] = reordered.splice(source.index, 1);
+    reordered.splice(destination.index, 0, moved);
+    const updated = reordered.map((e, i) => ({ ...e, position: i }));
+    setExpenses((prev) => [
+      ...prev.filter((e) => e.category_id !== catId),
+      ...updated,
+    ]);
+    try {
+      await reorderExpenses(updated.map((e) => ({ id: e.id, position: e.position })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
       <Cloud size={28} className="animate-pulse mr-2" /> {t("state.loading")}
@@ -375,73 +397,99 @@ function Expenses() {
                 <th className="text-center py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-16">{t("col.status")}</th>
               </tr>
             </thead>
-            <tbody>
+            <DragDropContext onDragEnd={handleDragEnd}>
               {grouped.map((sec, si) => {
                 const catTotal = sec.items.reduce((s, e) => s + e.amount, 0);
                 const color = SECTION_COLORS[si % SECTION_COLORS.length];
                 return (
                   <Fragment key={sec.id}>
-                    <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
-                      <td className="py-2.5 px-3">
-                        <span style={{ color }} className="text-[10px]">■</span>
-                      </td>
-                      <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">
-                        <span className="flex items-center gap-2">
-                          {sec.name}
-                          {!isPastMonth && (
-                            <button
-                              onClick={() => setNewExpense({ category_id: sec.id, name: "", amount: 0 })}
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
-                              title="Add expense"
-                            >
-                              <Plus size={10} />
-                            </button>
-                          )}
-                          {!isPastMonth && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: sec.id, name: sec.name }); }}
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
-                              title={t("category.delete")}
-                            >
-                              <Trash2 size={10} />
-                            </button>
-                          )}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
-                      <td className="py-2.5 px-3 text-center text-slate-400 dark:text-zinc-600 text-[10px]">{sec.items.length} items</td>
-                    </tr>
-                    {sec.items.map((e, i) => (
-                      <tr key={e.id}
-                        onClick={() => !isPastMonth && setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
-                        className={cn(
-                          "border-b border-dashed border-slate-100 dark:border-zinc-800/60 transition-colors",
-                          i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
-                          isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
-                        )}>
-                        <td className="py-1.5 px-3 w-8" onClick={(ev) => ev.stopPropagation()}>
-                          {!isPastMonth && (
-                            <button
-                              onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
-                            >
-                              <Trash2 size={10} />
-                            </button>
-                          )}
+                    <tbody>
+                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
+                        <td className="py-2.5 px-3">
+                          <span style={{ color }} className="text-[10px]">■</span>
                         </td>
-                        <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                        <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
-                          {fmt(e.amount, locale, currency)}
+                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">
+                          <span className="flex items-center gap-2">
+                            {sec.name}
+                            {!isPastMonth && (
+                              <button
+                                onClick={() => setNewExpense({ category_id: sec.id, name: "", amount: 0 })}
+                                className="inline-flex items-center justify-center w-4 h-4 rounded text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                                title="Add expense"
+                              >
+                                <Plus size={10} />
+                              </button>
+                            )}
+                            {!isPastMonth && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: sec.id, name: sec.name }); }}
+                                className="inline-flex items-center justify-center w-4 h-4 rounded text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                                title={t("category.delete")}
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            )}
+                          </span>
                         </td>
-                        <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
-                          <StatusPicker status={e.status} onChange={(v) => handleStatusChange(e.id, v)} />
-                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
+                        <td className="py-2.5 px-3 text-center text-slate-400 dark:text-zinc-600 text-[10px]">{sec.items.length} items</td>
                       </tr>
-                    ))}
+                    </tbody>
+                    <Droppable droppableId={sec.id} isDropDisabled={isPastMonth}>
+                      {(droppableProvided) => (
+                        <tbody ref={droppableProvided.innerRef} {...droppableProvided.droppableProps}>
+                          {sec.items.map((e, i) => (
+                            <Draggable key={e.id} draggableId={e.id} index={i} isDragDisabled={isPastMonth}>
+                              {(draggableProvided, snapshot) => (
+                                <tr
+                                  ref={draggableProvided.innerRef}
+                                  {...draggableProvided.draggableProps}
+                                  onClick={() => !isPastMonth && !snapshot.isDragging && setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
+                                  className={cn(
+                                    "border-b border-dashed border-slate-100 dark:border-zinc-800/60 transition-colors",
+                                    i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
+                                    isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer",
+                                    snapshot.isDragging ? "bg-emerald-50 dark:bg-emerald-950/20 shadow-md" : ""
+                                  )}>
+                                  <td className="py-1.5 px-3 w-12" onClick={(ev) => ev.stopPropagation()}>
+                                    <span className="flex items-center gap-1">
+                                      {!isPastMonth && (
+                                        <span
+                                          {...draggableProvided.dragHandleProps}
+                                          className="inline-flex items-center justify-center w-4 h-4 text-slate-300 dark:text-zinc-600 hover:text-slate-500 dark:hover:text-zinc-400 cursor-grab active:cursor-grabbing"
+                                        >
+                                          <GripVertical size={10} />
+                                        </span>
+                                      )}
+                                      {!isPastMonth && (
+                                        <button
+                                          onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
+                                          className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                                        >
+                                          <Trash2 size={10} />
+                                        </button>
+                                      )}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
+                                  <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
+                                    {fmt(e.amount, locale, currency)}
+                                  </td>
+                                  <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
+                                    <StatusPicker status={e.status} onChange={(v) => handleStatusChange(e.id, v)} />
+                                  </td>
+                                </tr>
+                              )}
+                            </Draggable>
+                          ))}
+                          {droppableProvided.placeholder}
+                        </tbody>
+                      )}
+                    </Droppable>
                   </Fragment>
                 );
               })}
-            </tbody>
+            </DragDropContext>
           </table>
         </div>
 

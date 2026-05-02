@@ -140,25 +140,20 @@ The entire application is contained in a single JSX file (~930 lines). It's orga
 
 --- 
 
-## Approach
-- Think before acting. Read existing files before writing code.
-- Be concise in output but thorough in reasoning.
-- Prefer editing over rewriting whole files.
-- Do not re-read files you have already read unless the file may have changed.
-- Skip files over 100KB unless explicitly required.
-- Suggest running /cost when a session is running long to monitor cache ratio.
-- Recommend starting a new session when switching to an unrelated task.
-- Test your code before declaring done.
-- No sycophantic openers or closing fluff.
-- Keep solutions simple and direct.
-- User instructions always override this file.
-
 # Core Rules
 
 Short sentences only (8-10 words max).
 No filler, no preamble, no pleasantries.
 Tool first. Result first. No explain unless asked.
 Code stays normal. English gets compressed.
+
+## Approach
+- Read existing files before writing. Don't re-read unless changed.
+- Thorough in reasoning, concise in output.
+- Skip files over 100KB unless required.
+- No sycophantic openers or closing fluff.
+- No emojis or em-dashes.
+- Do not guess APIs, versions, flags, commit SHAs, or package names. Verify by reading code or docs before asserting.
 
 ## Formatting
 

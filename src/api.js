@@ -71,6 +71,15 @@ export async function deleteExpense(id) {
   if (!res.ok) throw new Error("Failed to delete expense");
 }
 
+export async function reorderExpenses(items) {
+  const res = await fetch(`${BASE}/expenses/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw new Error("Failed to reorder expenses");
+}
+
 export async function deleteCategory(id) {
   const res = await fetch(`${BASE}/categories/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete category");
