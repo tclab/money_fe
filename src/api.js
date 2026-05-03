@@ -85,6 +85,25 @@ export async function deleteCategory(id) {
   if (!res.ok) throw new Error("Failed to delete category");
 }
 
+export async function reorderCategories(items) {
+  const res = await fetch(`${BASE}/categories/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw new Error("Failed to reorder categories");
+}
+
+export async function updateCategory(id, name) {
+  const res = await fetch(`${BASE}/categories/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to update category");
+  return res.json();
+}
+
 export async function updateExpense(id, patch) {
   const body = {};
   if (patch.expense !== undefined) body.expense = patch.expense;

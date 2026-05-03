@@ -20,6 +20,8 @@
   "expenses.newCategory": "Nueva categoría",
   "expense.deleteTitle": "Eliminar gasto",
   "expense.deleteDesc": "¿Eliminar \"{name}\"? Esta acción no se puede deshacer.",
+  "category.edit": "Editar categoría",
+  "category.editTitle": "Editar categoría",
   "category.delete": "Eliminar categoría",
   "category.deleteTitle": "Eliminar categoría",
   "category.deleteDesc": "\"{name}\" y todos sus gastos serán eliminados permanentemente.",
