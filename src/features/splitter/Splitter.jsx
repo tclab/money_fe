@@ -793,37 +793,6 @@ export default function Splitter() {
                   </div>
                 ))}
               </div>
-
-              {/* Distribution bar */}
-              {perPerson.length > 0 && pool > 0 && (
-                <div>
-                  <div style={{ fontSize: 10, color: textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{t("splitter.distribution")}</div>
-                  {(() => {
-                    const total = perPerson.reduce((s, p) => s + (p.amount > 0 ? p.amount : 0.0001), 0);
-                    let xPct = 0;
-                    return (
-                      <svg width="100%" height="28" style={{ borderRadius: 6, border: `1px solid ${border}`, display: "block" }}>
-                        {perPerson.map((p) => {
-                          const wPct = ((p.amount > 0 ? p.amount : 0.0001) / total) * 100;
-                          const cx = xPct + wPct / 2;
-                          const x = xPct;
-                          xPct += wPct;
-                          return (
-                            <g key={p.id}>
-                              <rect x={`${x}%`} y="0" width={`${wPct}%`} height="28" fill={p.color}/>
-                              {p.amount > pool * 0.08 && (
-                                <text x={`${cx}%`} y="14" textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="600" fill="#fff" fontFamily="inherit">
-                                  {p.name} · {fmtShort(p.amount)}
-                                </text>
-                              )}
-                            </g>
-                          );
-                        })}
-                      </svg>
-                    );
-                  })()}
-                </div>
-              )}
             </div>
           );
         })()}
