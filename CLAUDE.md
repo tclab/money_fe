@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**money-app** is a React/Vite financial management web application with two main features:
-1. **Expense Tracker (Gastos)** — Monthly expense management with categories (FIJOS, TARJETAS, APTOS) and payment status tracking
-2. **Cash Flow Tracker (Flujo de Caja)** — Cash flow management including entries, exits, discounts, loans, and payment schedules
+**money-app** is a React/Vite financial management web application with three main features:
+1. **Expenses** — Monthly expense management grouped by user-defined categories, with per-month payment status and amounts
+2. **Splitter** — Splits income and expenses across people by share, with per-person totals
+3. **DebtKiller** — Debt and loan tracking with payments, payment distribution, and progress donuts
 
-The app uses **localStorage** for data persistence with a custom storage abstraction layer. All data is local-only (no backend API). Users can export/import data as JSON files.
+Data persists in the backend (Supabase) via the REST client in `src/api.js` (base URL `http://localhost:8000`). The backend must be running for the app to load data. localStorage is used only for UI preferences (language and theme), not financial data.
 
 ## Common Commands
 
@@ -30,76 +31,53 @@ npm install
 
 ```
 src/
-├── App.jsx           # Main app shell with routing logic and data import/export
-├── main.jsx          # React entry point
-├── index.css         # Global styles + Tailwind imports
-├── storage.js        # localStorage abstraction (window.storage API)
+├── App.jsx                    # App shell: sidebar nav, tab switching, preferences modal
+├── main.jsx                   # React entry point (wraps app in I18nProvider)
+├── index.css                  # Global styles + Tailwind imports
+├── api.js                     # Backend REST client (all fetch calls live here)
+├── storage.js                 # Thin window.storage wrapper over localStorage (prefs only)
+├── features/
+│   ├── expenses/Expenses.jsx      # Expenses feature (~593 lines)
+│   ├── splitter/Splitter.jsx      # Splitter feature (~802 lines)
+│   └── debtKiller/DebtKiller.jsx  # DebtKiller feature (~770 lines)
+├── components/
+│   ├── Modal.jsx              # Generic modal dialog
+│   ├── Btn.jsx                # Button with variants/sizes
+│   ├── StatusPicker.jsx       # Expense status selector + AMOUNT_CLS export
+│   └── MonthYearPicker.jsx    # Month/year navigation picker
 ├── i18n/
-│   ├── index.jsx     # I18nProvider + useI18n hook (language, theme, t())
-│   ├── es.json       # Spanish strings (default)
-│   └── en.json       # English strings
+│   ├── index.jsx             # I18nProvider + useI18n hook (lang, theme, t, locale, currency)
+│   ├── es.json               # Spanish strings (default)
+│   └── en.json               # English strings
 └── lib/
-    └── utils.js      # cn() utility (clsx + tailwind-merge)
+    └── utils.js              # cn(), toMonthKey(), fmt(), fmtMonth()
 ```
 
 ## Architecture
 
-### Single-File Component (App.jsx)
+### App Shell (App.jsx)
 
-The entire application is contained in a single JSX file (~930 lines). It's organized into logical sections separated by comment headers:
+`App.jsx` is the shell only (~177 lines): sidebar navigation, collapsible/mobile drawer, tab switching between the three features, and the preferences modal (language + theme). Each tab renders a feature component from `src/features/`. Feature components are independent and self-contained; each fetches its own data from `api.js` on mount.
 
-1. **Shared Utilities** (lines 6-27)
-   - Date formatting: `toMonthKey()` converts dates to YYYY-MM format for storage keys
-   - Currency formatting: `fmt()` formats numbers as Colombian Pesos (COP)
-   - Export function: `exportData()` downloads data as JSON file
+### API Client (api.js)
 
-2. **ImportExportBar Component** (lines 29-88)
-   - Handles data export (download JSON) and import (upload JSON) with confirmation dialogs
-   - Re-initializes tracker state when importing
+All backend calls go through `src/api.js`. Base URL is hardcoded to `http://localhost:8000`. Notable conventions:
+- `mapExpense()` maps backend fields (`expense`, `value`) to frontend fields (`name`, `amount`).
+- Most list endpoints return `{ <plural>: [...] }`; the client unwraps with `data.x ?? data`.
+- `USER_ID = "default"` is sent as a query param or body field for user-scoped resources.
+- Functions cover CRUD + reorder for categories/expenses, expense-status upsert, splitter items, people (with feature association), and debts/payments (including `distributePayment`).
 
-3. **AmountInput Component** (lines 90-104)
-   - Dual-mode input field that displays formatted currency when not editing
-   - Switches to number input on focus for raw number entry
+### Feature components
 
-4. **ExpenseTracker Component** (lines 106-373)
-   - Main expense management feature
-   - **State:**
-     - `allMonths` — nested structure: `{ "2025-03": { "FIJOS": [...], "TARJETAS": [...], "APTOS": [...] } }`
-     - `viewDate` — currently displayed month
-     - `syncStatus` — UI feedback for save operations
-   - **Features:**
-     - Drag-and-drop reordering within/between categories
-     - Read-only mode for past months
-     - Expense status tracking (Pagado, No pagado, Programado, Verificar)
-     - Editable expense name, amount, and status in current month
-     - Auto-saves on every change via `window.storage.set()`
-
-5. **FlujoCaja Component** (lines 375-847)
-   - Cash flow and loan tracking feature
-   - **State:**
-     - `entradas` — income entries
-     - `salidas` — expense entries
-     - `descuentos` — deductions (e.g., "Menos 201", "Menos préstamo")
-     - `prestamos` — loans with concept and payment tracking
-   - **Features:**
-     - Calculates neto (net), C/U (per unit), and running totals
-     - Dynamic table generation with add/delete buttons for each section
-     - "Capturar" (Capture) button generates PNG via html2canvas and copies to clipboard
-     - Legacy format migration for descuentos field (old object → new array format)
-     - Read-only mode for past months
-
-6. **App Shell** (lines 850-929)
-   - Tab navigation (Gastos / Flujo de Caja)
-   - Collapsible sidebar (desktop) / mobile menu drawer
-   - Import/export orchestration
+- **Expenses** — categories + expenses fetched per month (`monthKey`). Drag-and-drop reorder via `@hello-pangea/dnd`. Per-month status/amount via `upsertExpenseStatus`. Past months are read-only. Inline editing of names, amounts, status, and categories.
+- **Splitter** — income/expense rows split across people by share. Uses `fetchPeople(feature)` for the splitter feature. Camera capture to PNG.
+- **DebtKiller** — debts and loans with payment history, progress donuts (`LoanDonut`), and `distributePayment` to spread one payment across active debts. Person filtering.
 
 ### Data Storage
 
-- **Keys:**
-  - `"expense-tracker-all-months"` — stores all expense data (ExpenseTracker.allMonths)
-  - `"flujo-caja-data"` — stores all cash flow data (FlujoCaja.allMonths)
-- **Format:** JSON-serialized nested objects by month key (e.g., `{ "2025-03": {...}, "2025-04": {...} }`)
-- **Abstraction:** `window.storage.get(key)` / `window.storage.set(key, value)` in storage.js
+- Financial data lives in the backend (Supabase), accessed only through `api.js`.
+- `storage.js` is a thin async wrapper over `localStorage`, used for UI state only.
+- UI preferences persist directly to localStorage: `app-language` and `app-theme` (set in `i18n/index.jsx`).
 
 ### Styling
 
@@ -109,11 +87,11 @@ The entire application is contained in a single JSX file (~930 lines). It's orga
 
 ## Key Design Patterns
 
-1. **Month-as-Key Storage** — All data indexed by `toMonthKey()` output; enables multi-month history
-2. **Read-Only Past Months** — Current month (derived from `new Date()`) is editable; others are read-only
-3. **Auto-Save on Change** — useEffect watches state and persists immediately (no explicit save button)
-4. **Drag-to-Reorder** — Expenses can be dragged within categories or between categories; drag state tracked in useRef
-5. **Dual-Mode Fields** — AmountInput shows currency-formatted text until focus, then switches to number input
+1. **Backend-Backed State** — Features fetch from `api.js` on mount and re-fetch after mutations; no client-side master store
+2. **Month-as-Key** — Expenses indexed by `toMonthKey()` (YYYY-MM); status/amount stored per month
+3. **Read-Only Past Months** — Current month (derived from `new Date()`) is editable; others are read-only
+4. **Drag-to-Reorder** — Drag within/between categories via `@hello-pangea/dnd`; persisted with `reorderExpenses`/`reorderCategories`
+5. **Self-Contained Features** — Each feature owns its data fetching, loading/error state, and modals
 
 ## i18n & Theme
 
@@ -131,10 +109,10 @@ The entire application is contained in a single JSX file (~930 lines). It's orga
 
 ## Notable Implementation Details
 
-- **No explicit error handling for storage failures** — gracefully falls back to fresh month if loading fails
+- **Backend required** — Features show loading/error state if `http://localhost:8000` is unreachable
+- **Field mapping** — `api.js` `mapExpense()` translates backend `expense`/`value` to frontend `name`/`amount`
 - **Date comparison for read-only mode** — uses `toMonthKey()` string comparison (works because format is YYYY-MM)
-- **html2canvas dynamic loading** — Capture button lazy-loads the library from CDN on first click
-- **Legacy data migration** — FlujoCaja automatically converts old descuentos format on load
+- **PNG capture** — Splitter and DebtKiller can export a view as a PNG image
 
 
 
