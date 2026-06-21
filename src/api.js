@@ -117,15 +117,17 @@ export async function updateExpense(id, patch) {
 
 // ─── SPLITTER ─────────────────────────────────────────────────────────────────
 
-export async function fetchSplitters() {
-  const res = await authFetch("/splitter/items");
+export async function fetchSplitters(month) {
+  const params = new URLSearchParams();
+  if (month) params.set("month", month);
+  const res = await authFetch(`/splitter/items${params.size ? "?" + params : ""}`);
   if (!res.ok) throw new Error("Failed to fetch splitters");
   const data = await res.json();
   return data.splitters ?? [];
 }
 
-export async function createSplitter(type, label, value, position = 0, person_id = null) {
-  const body = { type, label, value, position };
+export async function createSplitter(type, label, value, position = 0, person_id = null, month) {
+  const body = { month, type, label, value, position };
   if (person_id) body.person_id = person_id;
   const res = await authFetch("/splitter/items", { method: "POST", body });
   if (!res.ok) throw new Error("Failed to create splitter");
