@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Cloud, Pencil, Loader2, ImageDown } from "lucide-react";
+import { Plus, Trash2, Cloud, Pencil, Loader2 } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, fmt } from "../../lib/utils.js";
 import {
@@ -7,20 +7,7 @@ import {
   createDebtPayment, deleteDebtPayment,
   fetchPeople, createPerson,
 } from "../../api.js";
-
-function LoanDonut({ pct, color }) {
-  const size = 110, stroke = 12;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const safePct = Math.max(0, Math.min(100, pct || 0));
-  return (
-    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#3f3f46" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-        strokeDasharray={`${(safePct / 100) * c} ${c}`} strokeLinecap="round" />
-    </svg>
-  );
-}
+import ReportMenu from "../../components/ReportMenu.jsx";
 
 export default function DebtKiller() {
   const { t, locale, currency, theme } = useI18n();
@@ -30,7 +17,7 @@ export default function DebtKiller() {
   const [loading, setLoading] = useState(false);
   const reportRef = useRef(null);
   const [reportTarget, setReportTarget] = useState(null);
-  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportStatus, setReportStatus] = useState("idle");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
   const [formErrors, setFormErrors] = useState({});
@@ -49,6 +36,7 @@ export default function DebtKiller() {
   const [confirmDeleteDebt, setConfirmDeleteDebt] = useState(null);
   const [editingDebt, setEditingDebt] = useState(null);
   const [editAmountFocused, setEditAmountFocused] = useState(false);
+  const [openRow, setOpenRow] = useState(null);
 
   async function refreshDebts(personId = null) {
     const [filtered, all] = await Promise.all([
@@ -91,7 +79,16 @@ export default function DebtKiller() {
   useEffect(() => {
     if (!reportTarget) return;
     (async () => {
-      setReportGenerating(true);
+      setReportStatus("generating");
+      const mode = reportTarget.mode ?? "image";
+      const downloadBlob = (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `reporte-${(reportTarget.person?.name ?? debtTab).toLowerCase().replace(/\s+/g, "-")}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
       try {
         if (!window.html2canvas) {
           const script = document.createElement("script");
@@ -101,19 +98,26 @@ export default function DebtKiller() {
         await new Promise(r => setTimeout(r, 150));
         const bgColor = theme === "dark" ? "#18181b" : "#f8fafc";
         const canvas = await window.html2canvas(reportRef.current, { backgroundColor: bgColor, scale: 2 });
-        canvas.toBlob(blob => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `reporte-${(reportTarget.person?.name ?? debtTab).toLowerCase().replace(/\s+/g, "-")}.png`;
-          a.click();
-          URL.revokeObjectURL(url);
+        canvas.toBlob(async blob => {
+          if (mode === "clipboard") {
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+              setReportStatus("copied");
+              setTimeout(() => setReportStatus("idle"), 2000);
+            } catch {
+              downloadBlob(blob);
+              setReportStatus("idle");
+            }
+          } else {
+            downloadBlob(blob);
+            setReportStatus("idle");
+          }
+          setReportTarget(null);
         }, "image/png");
       } catch (e) {
         console.error("Report capture failed:", e);
-      } finally {
         setReportTarget(null);
-        setReportGenerating(false);
+        setReportStatus("idle");
       }
     })();
   }, [reportTarget]);
@@ -139,12 +143,6 @@ export default function DebtKiller() {
     const total = items.reduce((s, d) => s + (d.amount ?? 0), 0);
     const paid  = items.reduce((s, d) => s + (d.debt_payments ?? []).reduce((ps, p) => ps + (p.amount ?? 0), 0), 0);
     return { total, paid, remaining: Math.max(0, total - paid) };
-  };
-
-  const fmtShort = (n) => {
-    if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(n) >= 1_000) return `$${Math.round(n / 1_000)}k`;
-    return `$${Math.round(n)}`;
   };
 
   const fmtPayDate = (iso) => {
@@ -230,9 +228,9 @@ export default function DebtKiller() {
     await refreshDebts(debtPersonFilter);
   }
 
-  function handleReport() {
+  function handleReport(mode = "image") {
     const person = debtPersonFilter ? people.find(p => p.id === debtPersonFilter) : null;
-    setReportTarget({ person, debts });
+    setReportTarget({ person, debts, mode });
   }
 
   function closeBulkForm() {
@@ -281,96 +279,113 @@ export default function DebtKiller() {
   const UNPAID_COLOR = "#f87171";
   const inputCls = "w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-50 placeholder-slate-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500";
 
-  const renderDebtCard = (d, index) => {
+  // Shared grid template for the dense ledger table (header / rows / footer)
+  const COLS = "minmax(180px,1.6fr) minmax(150px,1.3fr) minmax(90px,0.9fr) minmax(90px,0.9fr) minmax(90px,0.9fr) minmax(120px,1fr) 76px";
+
+  const startAddPayment = (debtId) => {
+    setAddingPayment(debtId);
+    setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
+    setPaymentError("");
+  };
+
+  const renderDebtRow = (d, index) => {
     const payments = d.debt_payments ?? [];
     const paid = payments.reduce((s, p) => s + (p.amount ?? 0), 0);
     const remaining = Math.max(0, (d.amount ?? 0) - paid);
     const pct = d.amount > 0 ? Math.min(100, (paid / d.amount) * 100) : 0;
-const person = people.find(p => p.id === d.person_id);
+    const person = people.find(p => p.id === d.person_id);
+    const ordered = [...payments].sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+    const last = ordered[ordered.length - 1];
+    const isOpen = openRow === d.id;
 
     return (
-      <div key={d.id} className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-4">
-        {/* Header: label + name + donut */}
-        <div className="flex justify-between items-start">
-          <div className="min-w-0 flex-1 pr-3">
-            <div className="flex items-center justify-between">
-              <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">
-                {t("debt.loanLabel")}{index}
-                {person && <span className="ml-1.5">· {person.name}</span>}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setEditingDebt({ id: d.id, description: d.description ?? "", amount: String(d.amount ?? ""), person_id: d.person_id ?? "", due_date: d.due_date ?? "" })}
-                  className="text-slate-300 dark:text-zinc-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
-                  <Pencil size={13} />
-                </button>
-                <button onClick={() => setConfirmDeleteDebt(d)}
-                  className="text-slate-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 transition-colors">
-                  <Trash2 size={13} />
-                </button>
-              </div>
+      <div key={d.id} className="border-b border-slate-100 dark:border-zinc-800/60 last:border-b-0">
+        {/* Ledger row */}
+        <div
+          onClick={() => setOpenRow(isOpen ? null : d.id)}
+          style={{ gridTemplateColumns: COLS }}
+          className={cn(
+            "grid gap-3.5 items-center px-3.5 py-3 text-[13px] cursor-pointer transition-colors",
+            isOpen ? "bg-slate-50 dark:bg-zinc-800/40" : "hover:bg-slate-50 dark:hover:bg-zinc-800/30"
+          )}>
+          {/* Loan: description + label + person */}
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-900 dark:text-zinc-50 truncate">{d.description}</div>
+            <div className="text-[11px] text-slate-400 dark:text-zinc-500 mt-0.5 truncate">
+              {t("debt.loanLabel")}{index}{person ? ` · ${person.name}` : ""}
+              {d.due_date ? ` · ${t("debt.due")} ${d.due_date}` : ""}
             </div>
-            <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 mt-1 leading-tight">{d.description}</div>
-            {d.due_date && (
-              <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mt-1">Due {d.due_date}</div>
+          </div>
+          {/* Progress: mini bar + percent */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden min-w-[40px]">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+            </div>
+            <span className={cn("font-mono text-xs w-9 text-right shrink-0",
+              pct >= 99.9 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-zinc-400")}>
+              {Math.round(pct)}%
+            </span>
+          </div>
+          {/* Cantidad */}
+          <div className="font-mono text-right text-slate-700 dark:text-zinc-300">{fmt(d.amount || 0, locale, currency)}</div>
+          {/* Pagado */}
+          <div className="font-mono text-right text-emerald-600 dark:text-emerald-400">{fmt(paid, locale, currency)}</div>
+          {/* Resta */}
+          <div className={cn("font-mono text-right", remaining ? "text-rose-600 dark:text-rose-400" : "text-slate-400 dark:text-zinc-600")}>
+            {fmt(remaining, locale, currency)}
+          </div>
+          {/* Último abono */}
+          <div className="font-mono text-[11px] text-slate-500 dark:text-zinc-400 truncate">
+            {last ? (
+              <>{fmtPayDate(last.date)} · {fmt(last.amount, locale, currency)}
+                <span className="text-slate-400 dark:text-zinc-600"> · {payments.length}×</span></>
+            ) : (
+              <span className="text-slate-400 dark:text-zinc-600 italic">{t("debt.noPayments")}</span>
             )}
           </div>
-          <div className="relative w-[110px] h-[110px] shrink-0">
-            <LoanDonut pct={pct} color={PAID_COLOR} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50">{Math.round(pct)}%</div>
-              <div className="text-[9px] text-slate-400 dark:text-zinc-500">{t("debt.paidLabel")}</div>
-            </div>
+          {/* Acción */}
+          <div className="flex items-center gap-1.5 justify-end">
+            <button
+              onClick={(e) => { e.stopPropagation(); setEditingDebt({ id: d.id, description: d.description ?? "", amount: String(d.amount ?? ""), person_id: d.person_id ?? "", due_date: d.due_date ?? "" }); }}
+              className="text-slate-300 dark:text-zinc-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
+              <Pencil size={13} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteDebt(d); }}
+              className="text-slate-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 transition-colors">
+              <Trash2 size={13} />
+            </button>
           </div>
         </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: t("col.cantidad"), value: fmtShort(d.amount || 0), color: "#e4e4e7" },
-            { label: t("summary.paid"),  value: fmtShort(paid),          color: PAID_COLOR },
-            { label: t("debt.left"),     value: fmtShort(remaining),     color: UNPAID_COLOR },
-          ].map(({ label, value, color }) => (
-            <div key={label}>
-              <div className="text-[9px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase">{label}</div>
-              <div className="text-sm font-bold font-mono mt-0.5" style={{ color }}>{value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Payment history */}
-        <div>
-          <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase mb-2">{t("debt.history")}</div>
-          <div className="flex flex-col gap-1.5">
-            {payments.length === 0 ? (
-              <div className="text-xs text-slate-400 dark:text-zinc-600 italic">{t("debt.noPayments")}</div>
-            ) : payments.map(pay => (
-              <div key={pay.id} className="flex items-center gap-2.5 bg-slate-50 dark:bg-zinc-800/60 rounded-lg px-3 py-2 text-xs">
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PAID_COLOR }} />
-                <span className="flex-1 text-slate-700 dark:text-zinc-300">
-                  {t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}
+        {/* Expanded abono history */}
+        {isOpen && (
+          <div className="px-3.5 pt-1 pb-4 bg-slate-50 dark:bg-zinc-800/40">
+            <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase mb-2">{t("debt.history")}</div>
+            <div className="flex flex-col gap-1.5">
+              {ordered.map(pay => (
+                <div key={pay.id} className="flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-emerald-500" />
+                  <span className="flex-1 text-slate-500 dark:text-zinc-400 truncate">{t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}</span>
+                  <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{fmt(pay.amount, locale, currency)}</span>
+                  <button onClick={(e) => { e.stopPropagation(); handleDeletePayment(d.id, pay.id); }}
+                    className="text-slate-300 dark:text-zinc-600 hover:text-red-400 transition-colors ml-1">
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              ))}
+              {savingPayments.has(d.id) ? (
+                <span className="flex items-center gap-1.5 text-xs font-mono text-slate-400 dark:text-zinc-500 px-3 py-2">
+                  <Loader2 size={12} className="animate-spin" /> {t("sync.saving")}
                 </span>
-                <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{fmt(pay.amount, locale, currency)}</span>
-                <button onClick={() => handleDeletePayment(d.id, pay.id)}
-                  className="text-slate-300 dark:text-zinc-600 hover:text-red-400 transition-colors ml-1">
-                  <Trash2 size={11} />
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); startAddPayment(d.id); }}
+                  disabled={remaining === 0}
+                  className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  <Plus size={12} /> {t("debt.addPayment")}
                 </button>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
-        </div>
-
-        {/* Add payment button */}
-        {savingPayments.has(d.id) ? (
-          <span className="flex items-center gap-1.5 text-xs font-mono text-slate-400 dark:text-zinc-500">
-            <Loader2 size={12} className="animate-spin" /> {t("sync.saving")}
-          </span>
-        ) : (
-          <button onClick={() => { setAddingPayment(d.id); setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" }); setPaymentError(""); }}
-            disabled={remaining === 0}
-            className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-            <Plus size={12} /> Add Payment
-          </button>
         )}
       </div>
     );
@@ -385,10 +400,7 @@ const person = people.find(p => p.id === d.person_id);
           <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.debtKiller")}</div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleReport} disabled={reportGenerating || debts.length === 0}
-            className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-40">
-            <ImageDown size={13} /> {reportGenerating ? "..." : t("debt.report")}
-          </button>
+          <ReportMenu status={reportStatus} disabled={debts.length === 0} onSelect={handleReport} />
           <button onClick={() => setShowBulkForm(v => !v)}
             className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
             {t("debt.bulkPayment")}
@@ -485,8 +497,35 @@ const person = people.find(p => p.id === d.person_id);
                   <p className="text-slate-400 dark:text-zinc-500 text-sm">{t("debt.noLoans")}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {items.map((d, i) => renderDebtCard(d, i + 1))}
+                <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-x-auto">
+                  <div className="min-w-[760px]">
+                    {/* Header */}
+                    <div style={{ gridTemplateColumns: COLS }}
+                      className="grid gap-3.5 px-3.5 py-2.5 text-[10px] font-mono tracking-widest uppercase text-slate-400 dark:text-zinc-500 border-b border-slate-200 dark:border-zinc-800">
+                      <div>{t("debt.colLoan")}</div>
+                      <div>{t("debt.colProgress")}</div>
+                      <div className="text-right">{t("col.cantidad")}</div>
+                      <div className="text-right">{t("summary.paid")}</div>
+                      <div className="text-right">{t("flujo.restante")}</div>
+                      <div>{t("debt.colLastPayment")}</div>
+                      <div className="text-right">{t("debt.colAction")}</div>
+                    </div>
+                    {/* Rows */}
+                    {items.map((d, i) => renderDebtRow(d, i + 1))}
+                    {/* Totals footer */}
+                    <div style={{ gridTemplateColumns: COLS }}
+                      className="grid gap-3.5 px-3.5 py-3 items-center text-[13px] border-t border-slate-200 dark:border-zinc-800">
+                      <div className="text-[10px] font-mono tracking-widest uppercase text-slate-400 dark:text-zinc-500">
+                        {t("debt.totals")} · {items.length}
+                      </div>
+                      <div />
+                      <div className="font-mono text-right font-semibold text-slate-900 dark:text-zinc-50">{fmt(total, locale, currency)}</div>
+                      <div className="font-mono text-right font-semibold text-emerald-600 dark:text-emerald-400">{fmt(paid, locale, currency)}</div>
+                      <div className="font-mono text-right font-semibold text-rose-600 dark:text-rose-400">{fmt(remaining, locale, currency)}</div>
+                      <div />
+                      <div />
+                    </div>
+                  </div>
                 </div>
               )}
             </>
@@ -706,61 +745,84 @@ const person = people.find(p => p.id === d.person_id);
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {reportTarget.debts.map((d, i) => {
-                const payments = d.debt_payments ?? [];
-                const paidAmt = payments.reduce((s, p) => s + (p.amount ?? 0), 0);
-                const rem = Math.max(0, (d.amount ?? 0) - paidAmt);
-                const pct = d.amount > 0 ? Math.min(100, (paidAmt / d.amount) * 100) : 0;
-                const r = 44, cx = 55, cy = 55, sw = 8, circ = 2 * Math.PI * r;
+            <div style={{ background: rp.card, border: `1px solid ${rp.border}`, borderRadius: 12, overflow: "hidden" }}>
+              {(() => {
+                const RCOLS = "1.6fr 1.3fr 0.9fr 0.9fr 0.9fr 1fr";
+                const cell = { fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: rp.muted };
                 return (
-                  <div key={d.id} style={{ background: rp.card, border: `1px solid ${rp.border}`, borderRadius: 16, padding: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                      <div>
-                        <div style={{ color: rp.muted, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          {t("debt.loanLabel")}{i + 1}{reportTarget.person ? ` · ${reportTarget.person.name.toUpperCase()}` : ""}
-                        </div>
-                        <div style={{ color: rp.text, fontSize: 18, fontWeight: 700, marginTop: 4 }}>{d.description}</div>
-                      </div>
-                      <svg width={110} height={110} style={{ flexShrink: 0 }}>
-                        <g transform={`rotate(-90 ${cx} ${cy})`}>
-                          <circle cx={cx} cy={cy} r={r} fill="none" stroke={rp.border} strokeWidth={sw} />
-                          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#34d399" strokeWidth={sw}
-                            strokeDasharray={`${(pct / 100) * circ} ${circ}`} strokeLinecap="round" />
-                        </g>
-                        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-                          style={{ fill: rp.text, fontSize: 14, fontWeight: 700 }}>
-                          {Math.round(pct)}%
-                        </text>
-                        <text x={cx} y={cy + 14} textAnchor="middle"
-                          style={{ fill: rp.muted, fontSize: 8 }}>
-                          {t("debt.paidLabel")}
-                        </text>
-                      </svg>
+                  <>
+                    {/* Header */}
+                    <div style={{ display: "grid", gridTemplateColumns: RCOLS, gap: 12, padding: "10px 16px", borderBottom: `1px solid ${rp.border}` }}>
+                      <div style={cell}>{t("debt.colLoan")}</div>
+                      <div style={cell}>{t("debt.colProgress")}</div>
+                      <div style={{ ...cell, textAlign: "right" }}>{t("col.cantidad")}</div>
+                      <div style={{ ...cell, textAlign: "right" }}>{t("summary.paid")}</div>
+                      <div style={{ ...cell, textAlign: "right" }}>{t("flujo.restante")}</div>
+                      <div style={cell}>{t("debt.colLastPayment")}</div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-                      {[
-                        { label: t("col.cantidad"), value: fmtShort(d.amount || 0), color: isDark ? "#e4e4e7" : "#0f172a" },
-                        { label: t("summary.paid"),  value: fmtShort(paidAmt),       color: "#34d399" },
-                        { label: t("debt.left"),     value: fmtShort(rem),           color: "#f87171" },
-                      ].map(s => (
-                        <div key={s.label}>
-                          <div style={{ color: rp.muted, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" }}>{s.label}</div>
-                          <div style={{ color: s.color, fontSize: 13, fontWeight: 700, marginTop: 2 }}>{s.value}</div>
+                    {/* Rows */}
+                    {reportTarget.debts.map((d, i) => {
+                      const payments = d.debt_payments ?? [];
+                      const paidAmt = payments.reduce((s, p) => s + (p.amount ?? 0), 0);
+                      const rem = Math.max(0, (d.amount ?? 0) - paidAmt);
+                      const pct = d.amount > 0 ? Math.min(100, (paidAmt / d.amount) * 100) : 0;
+                      const ordered = [...payments].sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
+                      const last = ordered[ordered.length - 1];
+                      return (
+                        <div key={d.id} style={{ borderBottom: `1px solid ${rp.border}` }}>
+                          <div style={{ display: "grid", gridTemplateColumns: RCOLS, gap: 12, padding: "11px 16px", alignItems: "center", fontSize: 12 }}>
+                            {/* Préstamo */}
+                            <div>
+                              <div style={{ color: rp.text, fontWeight: 700 }}>{d.description}</div>
+                              <div style={{ color: rp.muted, fontSize: 10, marginTop: 2 }}>
+                                {t("debt.loanLabel")}{i + 1}{d.person_id && reportTarget.person ? ` · ${reportTarget.person.name}` : ""}
+                              </div>
+                            </div>
+                            {/* Progreso */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ flex: 1, height: 6, borderRadius: 999, background: rp.row, overflow: "hidden" }}>
+                                <div style={{ width: `${pct}%`, height: "100%", borderRadius: 999, background: "#34d399" }} />
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 600, width: 30, textAlign: "right", color: pct >= 99.9 ? "#34d399" : rp.text }}>{Math.round(pct)}%</span>
+                            </div>
+                            {/* Cantidad */}
+                            <div style={{ textAlign: "right", color: rp.text }}>{fmt(d.amount || 0, locale, currency)}</div>
+                            {/* Pagado */}
+                            <div style={{ textAlign: "right", color: "#34d399" }}>{fmt(paidAmt, locale, currency)}</div>
+                            {/* Resta */}
+                            <div style={{ textAlign: "right", color: rem ? "#f87171" : rp.muted }}>{fmt(rem, locale, currency)}</div>
+                            {/* Último abono */}
+                            <div style={{ fontSize: 10, color: rp.muted }}>
+                              {last ? `${fmtPayDate(last.date)} · ${fmt(last.amount, locale, currency)} · ${payments.length}×` : t("debt.noPayments")}
+                            </div>
+                          </div>
+                          {/* Payment history */}
+                          {payments.length > 0 && (
+                            <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+                              {ordered.map(pay => (
+                                <div key={pay.id} style={{ background: rp.row, borderRadius: 8, padding: "6px 12px", fontSize: 10, lineHeight: "16px", display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "#34d399", flexShrink: 0 }} />
+                                  <span style={{ flex: 1, color: isDark ? "#d4d4d8" : "#334155" }}>{t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}</span>
+                                  <span style={{ color: rp.text, fontWeight: 600 }}>{fmt(pay.amount, locale, currency)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      ))}
+                      );
+                    })}
+                    {/* Totals footer */}
+                    <div style={{ display: "grid", gridTemplateColumns: RCOLS, gap: 12, padding: "12px 16px", alignItems: "center", fontSize: 12 }}>
+                      <div style={cell}>{t("debt.totals")} · {reportTarget.debts.length}</div>
+                      <div />
+                      <div style={{ textAlign: "right", fontWeight: 700, color: rp.text }}>{fmt(total, locale, currency)}</div>
+                      <div style={{ textAlign: "right", fontWeight: 700, color: "#34d399" }}>{fmt(totalPaid, locale, currency)}</div>
+                      <div style={{ textAlign: "right", fontWeight: 700, color: "#f87171" }}>{fmt(totalRem, locale, currency)}</div>
+                      <div />
                     </div>
-                    <div style={{ color: rp.muted, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>{t("debt.history")}</div>
-                    {payments.map(pay => (
-                      <div key={pay.id} style={{ background: rp.row, borderRadius: 8, padding: "6px 12px", marginBottom: 4, fontSize: 11, lineHeight: "20px" }}>
-                        <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#34d399", verticalAlign: "middle", marginRight: 8 }} />
-                        <span style={{ color: isDark ? "#d4d4d8" : "#334155", verticalAlign: "middle" }}>{t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}</span>
-                        <span style={{ color: rp.text, fontWeight: 600, float: "right", verticalAlign: "middle" }}>{fmt(pay.amount, locale, currency)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  </>
                 );
-              })}
+              })()}
             </div>
           </div>
         );
