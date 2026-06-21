@@ -86,7 +86,7 @@ export default function Splitter() {
       setLoading(true);
       try {
         const [splitterData, peopleData, allPeopleData] = await Promise.all([
-          fetchSplitters(),
+          fetchSplitters(monthKey),
           fetchPeople("splitter"),
           fetchPeople(),
         ]);
@@ -136,7 +136,7 @@ export default function Splitter() {
     const position = items.filter((i) => i.type === type).length;
     setCreateModal(null);
     try {
-      const created = await createSplitter(type, label || t("splitter.newRow"), value, position, type === "discount" ? person_id : null);
+      const created = await createSplitter(type, label || t("splitter.newRow"), value, position, type === "discount" ? person_id : null, monthKey);
       setItems((xs) => [...xs, created]);
     } catch (e) {
       console.error("Failed to create splitter:", e);

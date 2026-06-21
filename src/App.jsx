@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings } from "lucide-react";
+import { Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, LogOut } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
+import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
 import Modal from "./components/Modal.jsx";
 import Btn from "./components/Btn.jsx";
+import Login from "./auth/Login.jsx";
 import Expenses from "./features/expenses/Expenses.jsx";
 import Splitter from "./features/splitter/Splitter.jsx";
 import DebtKiller from "./features/debtKiller/DebtKiller.jsx";
 
 export default function App() {
   const { t, lang, setLang, theme, setTheme } = useI18n();
+  const { session, loading, signOut } = useAuth();
   const [tab, setTab] = useState("expenses");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -70,6 +73,16 @@ export default function App() {
       </div>
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-zinc-950">
+        <div className="w-6 h-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) return <Login />;
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-zinc-950">
@@ -169,6 +182,13 @@ export default function App() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Account */}
+          <div className="border-t border-slate-200 dark:border-zinc-800 pt-4">
+            <Btn variant="danger" size="md" className="w-full justify-center" onClick={() => signOut()}>
+              <LogOut size={14} /> {t("auth.signOut")}
+            </Btn>
           </div>
         </div>
       </Modal>
