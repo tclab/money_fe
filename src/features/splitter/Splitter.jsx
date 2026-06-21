@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Cloud, Camera, Check } from "lucide-react";
+import { Plus, Cloud } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, toMonthKey, fmt, fmtMonth } from "../../lib/utils.js";
 import {
@@ -8,6 +8,7 @@ import {
   addPersonToFeature, removePersonFromFeature,
 } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
+import ReportMenu from "../../components/ReportMenu.jsx";
 import Btn from "../../components/Btn.jsx";
 
 const SPLITTER_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#f43f5e", "#06b6d4"];
@@ -251,7 +252,14 @@ export default function Splitter() {
     return String(Math.round(n));
   };
 
-  const handleCapture = async () => {
+  const downloadBlob = (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `splitter-${monthKey}.png`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCapture = async (mode = "clipboard") => {
     if (captureStatus !== "idle") return;
     setCaptureStatus("generating");
     try {
@@ -263,15 +271,17 @@ export default function Splitter() {
       await new Promise((r) => setTimeout(r, 100));
       const canvas = await window.html2canvas(captureRef.current, { backgroundColor: "#ffffff", scale: 2 });
       canvas.toBlob(async (blob) => {
+        if (mode === "image") {
+          downloadBlob(blob);
+          setCaptureStatus("idle");
+          return;
+        }
         try {
           await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
           setCaptureStatus("copied");
           setTimeout(() => setCaptureStatus("idle"), 2000);
         } catch {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url; a.download = `splitter-${monthKey}.png`; a.click();
-          URL.revokeObjectURL(url);
+          downloadBlob(blob);
           setCaptureStatus("idle");
         }
       }, "image/png");
@@ -296,24 +306,7 @@ export default function Splitter() {
             <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
             <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.splitter")}</div>
           </div>
-          <button
-            onClick={handleCapture}
-            disabled={captureStatus !== "idle"}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all",
-              captureStatus === "copied"
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                : "bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300"
-            )}
-          >
-            {captureStatus === "generating" ? (
-              <><Cloud size={14} className="animate-pulse" /> {t("btn.generating")}</>
-            ) : captureStatus === "copied" ? (
-              <><Check size={14} /> {t("btn.copied")}</>
-            ) : (
-              <><Camera size={14} /> {t("btn.capture")}</>
-            )}
-          </button>
+          <ReportMenu status={captureStatus} onSelect={handleCapture} />
         </div>
         <div className="flex gap-5 items-center">
           <StatBadge label={t("splitter.neto")} value={neto} color={neto >= 0 ? "#34d399" : "#f87171"} locale={locale} currency={currency} />
