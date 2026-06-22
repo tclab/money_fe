@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, LogOut } from "lucide-react";
+import { Moon, Sun, Menu, X, Wallet, BookOpen, TrendingUp, Users, Target, Settings, LogOut } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
@@ -8,6 +8,7 @@ import Modal from "./components/Modal.jsx";
 import Btn from "./components/Btn.jsx";
 import Login from "./auth/Login.jsx";
 import Expenses from "./features/expenses/Expenses.jsx";
+import Income from "./features/income/Income.jsx";
 import Splitter from "./features/splitter/Splitter.jsx";
 import DebtKiller from "./features/debtKiller/DebtKiller.jsx";
 
@@ -20,6 +21,7 @@ export default function App() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const navItems = [
     { id: "expenses", label: t("nav.expenses"), Icon: BookOpen },
+    { id: "income", label: t("nav.income"), Icon: TrendingUp },
     { id: "splitter", label: t("nav.splitter"), Icon: Users },
     { id: "debtKiller", label: t("nav.debtKiller"), Icon: Target },
   ];
@@ -93,7 +95,7 @@ export default function App() {
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
-            {tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
+            {tab === "income" ? t("nav.income") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -140,6 +142,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
             {tab === "expenses" && <Expenses />}
+            {tab === "income" && <Income />}
             {tab === "splitter" && <Splitter />}
             {tab === "debtKiller" && <DebtKiller />}
           </motion.div>

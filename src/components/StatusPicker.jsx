@@ -7,6 +7,8 @@ export const STATUS_ICON = {
   unpaid:    { ch: "×", cls: "text-rose-400 bg-rose-500/10 border border-rose-500/30" },
   scheduled: { ch: "◷", cls: "text-blue-400 bg-blue-500/10 border border-blue-500/30" },
   verify:    { ch: "!", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/30" },
+  received:  { ch: "✓", cls: "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" },
+  expected:  { ch: "◷", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/30" },
 };
 
 export const AMOUNT_CLS = {
@@ -14,9 +16,15 @@ export const AMOUNT_CLS = {
   unpaid:    "text-rose-600 dark:text-rose-400",
   scheduled: "text-blue-600 dark:text-blue-400",
   verify:    "text-amber-600 dark:text-amber-400",
+  received:  "text-emerald-600 dark:text-emerald-400",
+  expected:  "text-amber-600 dark:text-amber-400",
 };
 
-export default function StatusPicker({ status, onChange }) {
+// Statuses offered in the dropdown, scoped per feature so income and expenses
+// do not show each other's options.
+const EXPENSE_STATUSES = ["paid", "unpaid", "scheduled", "verify"];
+
+export default function StatusPicker({ status, onChange, options = EXPENSE_STATUSES }) {
   const { t } = useI18n();
   const [pos, setPos] = useState(null);
   const btnRef = useRef();
@@ -44,7 +52,7 @@ export default function StatusPicker({ status, onChange }) {
     setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
   };
 
-  const si = STATUS_ICON[status] || STATUS_ICON.unpaid;
+  const si = STATUS_ICON[status] || STATUS_ICON[options[0]] || STATUS_ICON.unpaid;
 
   return (
     <div className="flex items-center justify-center">
@@ -56,7 +64,7 @@ export default function StatusPicker({ status, onChange }) {
       {open && pos && (
         <div ref={dropRef} style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 9999 }}
           className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg shadow-xl py-0.5 min-w-[110px]">
-          {Object.entries(STATUS_ICON).map(([s, cfg]) => (
+          {options.map((s) => { const cfg = STATUS_ICON[s]; return (
             <button key={s}
               onMouseDown={(e) => { e.stopPropagation(); onChange(s); setPos(null); }}
               className={cn(
@@ -67,7 +75,7 @@ export default function StatusPicker({ status, onChange }) {
               <span className={cn("inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold shrink-0", cfg.cls)}>{cfg.ch}</span>
               <span className="text-slate-700 dark:text-zinc-200 font-mono">{t(`status.${s}`)}</span>
             </button>
-          ))}
+          ); })}
         </div>
       )}
     </div>
