@@ -45,7 +45,7 @@ export default function ReportMenu({ onSelect, disabled = false, status = "idle"
       <button ref={btnRef} onClick={handleOpen}
         disabled={disabled || status === "generating"}
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+          "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-mono font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed",
           status === "copied"
             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
             : "bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300"

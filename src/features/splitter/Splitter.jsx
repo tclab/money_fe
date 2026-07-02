@@ -14,7 +14,7 @@ import PageHeader from "../../components/PageHeader.jsx";
 
 const SPLITTER_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#f43f5e", "#06b6d4"];
 
-function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit, onAdd, locale, currency, t, people }) {
+function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit, onAdd, locale, currency, t, people, emptyDesc, primary }) {
   const getPersonBadge = (row) => {
     if (!row.person_id || !people) return null;
     const person = people.find((p) => p.id === row.person_id);
@@ -35,20 +35,38 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit,
         <span className="font-mono text-xs font-semibold" style={{ color }}>{fmt(total, locale, currency)}</span>
       </div>
       <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
-        {rows.map((r, i) => (
-          <div
-            key={i}
-            onClick={() => onEdit(i)}
-            className="flex gap-1.5 items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/60 rounded-md px-2 py-1.5 -mx-2 transition-colors"
-          >
-            {getPersonBadge(r)}
-            <span className="flex-1 text-xs text-slate-800 dark:text-zinc-100 truncate">{r[labelKey] || "—"}</span>
-            <span className="font-mono text-xs text-slate-600 dark:text-zinc-300 shrink-0">{fmt(r[valueKey], locale, currency)}</span>
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 gap-3 py-8 text-center">
+            <div className="text-sm font-semibold text-slate-700 dark:text-zinc-200">{t("splitter.empty")}</div>
+            {emptyDesc && <div className="text-xs text-slate-400 dark:text-zinc-500">{emptyDesc}</div>}
+            {primary ? (
+              <button onClick={onAdd} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium py-1.5 px-3 transition-colors">
+                <Plus size={11} /> {t("splitter.addRow")}
+              </button>
+            ) : (
+              <button onClick={onAdd} className="inline-flex items-center gap-1 border border-slate-300 dark:border-zinc-700 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 text-xs py-1.5 px-3 transition-colors">
+                <Plus size={11} /> {t("splitter.addRow")}
+              </button>
+            )}
           </div>
-        ))}
-        <button onClick={onAdd} className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center">
-          <Plus size={11} /> {t("splitter.addRow")}
-        </button>
+        ) : (
+          <>
+            {rows.map((r, i) => (
+              <div
+                key={i}
+                onClick={() => onEdit(i)}
+                className="flex gap-1.5 items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-800/60 rounded-md px-2 py-1.5 -mx-2 transition-colors"
+              >
+                {getPersonBadge(r)}
+                <span className="flex-1 text-xs text-slate-800 dark:text-zinc-100 truncate">{r[labelKey] || "—"}</span>
+                <span className="font-mono text-xs text-slate-600 dark:text-zinc-300 shrink-0">{fmt(r[valueKey], locale, currency)}</span>
+              </div>
+            ))}
+            <button onClick={onAdd} className="mt-1 border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 text-xs py-1.5 px-2 transition flex items-center gap-1 justify-center">
+              <Plus size={11} /> {t("splitter.addRow")}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -312,6 +330,7 @@ export default function Splitter() {
             onEdit={(i) => openEdit("income", entradas, i)}
             onAdd={() => openCreate("income")}
             locale={locale} currency={currency} t={t}
+            emptyDesc={t("splitter.emptyIncome")} primary
           />
           <SplitterColumn
             title={t("splitter.salidas")} total={totalSalidas} color="#f87171"
@@ -319,6 +338,7 @@ export default function Splitter() {
             onEdit={(i) => openEdit("expense", salidas, i)}
             onAdd={() => openCreate("expense")}
             locale={locale} currency={currency} t={t}
+            emptyDesc={t("splitter.emptyExpense")}
           />
           <SplitterColumn
             title={t("splitter.discounts")} total={totalDesc} color="#fbbf24"
@@ -326,6 +346,7 @@ export default function Splitter() {
             onEdit={(i) => openEdit("discount", descuentos, i)}
             onAdd={() => openCreate("discount")}
             locale={locale} currency={currency} t={t} people={people}
+            emptyDesc={t("splitter.emptyDiscount")}
           />
 
           <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-3 flex flex-col gap-2">

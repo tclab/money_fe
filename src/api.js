@@ -254,9 +254,12 @@ export async function removePersonFromFeature(personId, feature) {
 
 // ─── DEBT ─────────────────────────────────────────────────────────────────────
 
-export async function fetchDebts({ personId } = {}) {
-  let path = "/debts";
-  if (personId) path += `?person_id=${encodeURIComponent(personId)}`;
+export async function fetchDebts({ personId, archived } = {}) {
+  const params = new URLSearchParams();
+  if (personId) params.set("person_id", personId);
+  if (archived !== undefined) params.set("archived", archived);
+  const qs = params.toString();
+  const path = qs ? `/debts?${qs}` : "/debts";
   const res = await authFetch(path);
   if (!res.ok) throw new Error("Failed to fetch debts");
   const data = await res.json();

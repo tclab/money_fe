@@ -225,8 +225,8 @@ export default function Expenses() {
           { label: t("summary.total"), value: fmt(grandTotal, locale, currency), tone: "neutral" },
         ]}
         action={!isPastMonth && (
-          <Btn variant="primary" size="sm" onClick={() => setNewCategory("")}>
-            <Plus size={13} /> {t("expenses.newCategory")}
+          <Btn variant="primary" size="md" onClick={() => setNewCategory("")}>
+            <Plus size={15} /> {t("expenses.newCategory")}
           </Btn>
         )}
       />

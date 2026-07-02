@@ -38,7 +38,7 @@ export default function PageHeader({ viewDate, onSelectMonth, title, meta, metri
   };
 
   return (
-    <div className={cn(SURFACE, "rounded-xl px-6 py-4 flex flex-wrap justify-between items-end gap-4")} style={{ fontVariantNumeric: "tabular-nums" }}>
+    <div className={cn(SURFACE, "rounded-xl px-6 py-4 flex flex-wrap justify-between items-start gap-4")} style={{ fontVariantNumeric: "tabular-nums" }}>
       <div>
         {hasMonth ? (
           <div className="flex items-center gap-1.5">
@@ -57,7 +57,7 @@ export default function PageHeader({ viewDate, onSelectMonth, title, meta, metri
             </button>
           </div>
         ) : null}
-        <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-2">{title}</div>
+        <div className="text-2xl font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-2">{title}</div>
         {meta && <div className="text-xs font-mono text-slate-400 dark:text-zinc-500 mt-0.5">{meta}</div>}
       </div>
 

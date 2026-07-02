@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Cloud, Pencil, Loader2 } from "lucide-react";
+import { Plus, Trash2, Cloud, Pencil, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, fmt } from "../../lib/utils.js";
 import {
@@ -33,6 +33,7 @@ export default function DebtKiller() {
   const [savingPayments, setSavingPayments] = useState(new Set());
   const [paymentError, setPaymentError] = useState("");
   const [debtTab, setDebtTab] = useState("owed_to_me");
+  const [counts, setCounts] = useState({ owed_to_me: 0, i_owe: 0, archived: 0 });
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [bulkForm, setBulkForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "", person_id: "" });
   const [bulkAmountFocused, setBulkAmountFocused] = useState(false);
@@ -42,16 +43,28 @@ export default function DebtKiller() {
   const [editAmountFocused, setEditAmountFocused] = useState(false);
   const [openRow, setOpenRow] = useState(null);
 
+  // Recompute the person-filter pills and tab counts from the full debt set.
+  function applyMeta(all, tab = debtTab) {
+    setCounts({
+      owed_to_me: all.filter(d => d.type === "owed_to_me" && !d.archived).length,
+      i_owe:      all.filter(d => d.type === "i_owe" && !d.archived).length,
+      archived:   all.filter(d => d.archived).length,
+    });
+    const ids = tab === "archived"
+      ? [...new Set(all.filter(d => d.archived).map(d => d.person_id).filter(Boolean))]
+      : [...new Set(all.filter(d => d.type === tab && !d.archived).map(d => d.person_id).filter(Boolean))];
+    setAvailablePersons(ids);
+    if (debtPersonFilter && !ids.includes(debtPersonFilter)) setDebtPersonFilter(null);
+    return ids;
+  }
+
   async function refreshDebts(personId = null) {
     const [filtered, all] = await Promise.all([
       fetchDebts({ personId: personId || undefined }),
       fetchDebts(),
     ]);
     setDebts(filtered);
-    const type = debtTab === "owed_to_me" ? "owed_to_me" : "i_owe";
-    const ids = [...new Set(all.filter(d => d.type === type).map(d => d.person_id).filter(Boolean))];
-    setAvailablePersons(ids);
-    if (debtPersonFilter && !ids.includes(debtPersonFilter)) setDebtPersonFilter(null);
+    applyMeta(all);
   }
 
   useEffect(() => {
@@ -60,20 +73,14 @@ export default function DebtKiller() {
       .then(([d, p]) => {
         setDebts(d);
         setPeople(p);
-        const type = "owed_to_me";
-        const ids = [...new Set(d.filter(x => x.type === type).map(x => x.person_id).filter(Boolean))];
-        setAvailablePersons(ids);
+        applyMeta(d, "owed_to_me");
       })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     setDebtPersonFilter(null);
-    fetchDebts().then(all => {
-      const type = debtTab === "owed_to_me" ? "owed_to_me" : "i_owe";
-      const ids = [...new Set(all.filter(d => d.type === type).map(d => d.person_id).filter(Boolean))];
-      setAvailablePersons(ids);
-    });
+    fetchDebts().then(all => applyMeta(all));
   }, [debtTab]);
 
   useEffect(() => {
@@ -140,8 +147,9 @@ export default function DebtKiller() {
   }, [showForm, addingPayment, showBulkForm, confirmDeleteDebt, editingDebt]);
 
   const byCreated = (a, b) => new Date(a.created_at) - new Date(b.created_at);
-  const iOwe = debts.filter(d => d.type === "i_owe").sort(byCreated);
-  const owedMe = debts.filter(d => d.type === "owed_to_me").sort(byCreated);
+  const iOwe = debts.filter(d => d.type === "i_owe" && !d.archived).sort(byCreated);
+  const owedMe = debts.filter(d => d.type === "owed_to_me" && !d.archived).sort(byCreated);
+  const archived = debts.filter(d => d.archived).sort(byCreated);
 
   const groupTotals = (items) => {
     const total = items.reduce((s, d) => s + (d.amount ?? 0), 0);
@@ -232,9 +240,14 @@ export default function DebtKiller() {
     await refreshDebts(debtPersonFilter);
   }
 
+  async function handleArchiveDebt(debt) {
+    await updateDebt(debt.id, { archived: !debt.archived });
+    await refreshDebts(debtPersonFilter);
+  }
+
   function handleReport(mode = "image") {
     const person = debtPersonFilter ? people.find(p => p.id === debtPersonFilter) : null;
-    setReportTarget({ person, debts, mode });
+    setReportTarget({ person, debts: debts.filter(d => !d.archived), mode });
   }
 
   function closeBulkForm() {
@@ -352,6 +365,7 @@ export default function DebtKiller() {
           <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
             <RowActions items={[
               { label: t("actions.rename"), icon: Pencil, onClick: () => setEditingDebt({ id: d.id, description: d.description ?? "", amount: String(d.amount ?? ""), person_id: d.person_id ?? "", due_date: d.due_date ?? "" }) },
+              { label: d.archived ? t("debt.unarchive") : t("debt.archive"), icon: d.archived ? ArchiveRestore : Archive, onClick: () => handleArchiveDebt(d) },
               { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setConfirmDeleteDebt(d) },
             ]} />
           </div>
@@ -399,9 +413,9 @@ export default function DebtKiller() {
         action={
           <div className="flex items-center gap-2">
             <ReportMenu status={reportStatus} disabled={debts.length === 0} onSelect={handleReport} />
-            <Btn onClick={() => setShowBulkForm(v => !v)}>{t("debt.bulkPayment")}</Btn>
-            <Btn variant="primary" size="sm" onClick={() => setShowForm(v => !v)}>
-              <Plus size={13} /> {t("debt.newDebt")}
+            {debtTab !== "archived" && <Btn size="md" onClick={() => setShowBulkForm(v => !v)}>{t("debt.bulkPayment")}</Btn>}
+            <Btn variant="primary" size="md" onClick={() => setShowForm(v => !v)}>
+              <Plus size={15} /> {t("debt.newDebt")}
             </Btn>
           </div>
         }
@@ -410,8 +424,9 @@ export default function DebtKiller() {
       {/* Tabs */}
       <div className="px-6 pt-4 flex gap-1 border-b border-slate-200 dark:border-zinc-800">
         {[
-          { key: "owed_to_me", label: t("debt.owedToMe"), count: owedMe.length },
-          { key: "i_owe",      label: t("debt.iOwe"),     count: iOwe.length },
+          { key: "owed_to_me", label: t("debt.owedToMe"), count: counts.owed_to_me },
+          { key: "i_owe",      label: t("debt.iOwe"),     count: counts.i_owe },
+          { key: "archived",   label: t("debt.archived"), count: counts.archived },
         ].map(tab => (
           <button key={tab.key} onClick={() => setDebtTab(tab.key)}
             className={cn(
@@ -463,9 +478,16 @@ export default function DebtKiller() {
       <div className="p-4 pb-6 flex flex-col gap-4">
         {(() => {
           const isOwedToMe = debtTab === "owed_to_me";
-          const items = isOwedToMe ? owedMe : iOwe;
+          const isArchived = debtTab === "archived";
+          const items = isArchived ? archived : (isOwedToMe ? owedMe : iOwe);
           const { total, paid, remaining } = groupTotals(items);
-          const kpis = isOwedToMe
+          const kpis = isArchived
+            ? [
+                { label: t("debt.totalDebt"), value: fmt(total, locale, currency),     color: "#e4e4e7",   sub: `${items.length} ${t("debt.activeLoans")}` },
+                { label: t("summary.paid"),   value: fmt(paid, locale, currency),      color: PAID_COLOR,  sub: `${total > 0 ? Math.round(paid / total * 100) : 0}% ${t("debt.ofTotal")}` },
+                { label: t("flujo.restante"), value: fmt(remaining, locale, currency), color: PENDING_COLOR, sub: t("debt.toCollect") },
+              ]
+            : isOwedToMe
             ? [
                 { label: t("debt.totalToCollect"), value: fmt(total, locale, currency),     color: "#e4e4e7",   sub: `${items.length} ${t("debt.activeLoans")}` },
                 { label: t("debt.collected"),      value: fmt(paid, locale, currency),      color: PAID_COLOR,  sub: `${total > 0 ? Math.round(paid / total * 100) : 0}% ${t("debt.ofTotal")}` },
@@ -792,18 +814,6 @@ export default function DebtKiller() {
                               {last ? `${fmtPayDate(last.date)} · ${fmt(last.amount, locale, currency)} · ${payments.length}×` : t("debt.noPayments")}
                             </div>
                           </div>
-                          {/* Payment history */}
-                          {payments.length > 0 && (
-                            <div style={{ padding: "0 16px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-                              {ordered.map(pay => (
-                                <div key={pay.id} style={{ background: rp.row, borderRadius: 8, padding: "6px 12px", fontSize: 10, lineHeight: "16px", display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "#34d399", flexShrink: 0 }} />
-                                  <span style={{ flex: 1, color: isDark ? "#d4d4d8" : "#334155" }}>{t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}</span>
-                                  <span style={{ color: rp.text, fontWeight: 600 }}>{fmt(pay.amount, locale, currency)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
