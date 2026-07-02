@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, Cloud } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, toMonthKey, fmt, fmtMonth } from "../../lib/utils.js";
+import { TYPE } from "../../lib/tokens.js";
 import {
   fetchSplitters, createSplitter, updateSplitter, deleteSplitter,
   fetchPeople, createPerson, updatePerson,
@@ -31,7 +32,7 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit,
   return (
     <div className="bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 rounded-xl p-3 flex flex-col gap-2">
       <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-zinc-800">
-        <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color }}>{title}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color }}>{title}</span>
         <span className="font-mono text-xs font-semibold" style={{ color }}>{fmt(total, locale, currency)}</span>
       </div>
       <div className="flex flex-col gap-1.5 overflow-y-auto flex-1">
@@ -351,7 +352,7 @@ export default function Splitter() {
 
           <div className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-3 flex flex-col gap-2">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-zinc-700">
-              <span className="text-[10px] font-semibold tracking-widest uppercase text-blue-500">{t("splitter.people")} · {people.length}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-500">{t("splitter.people")} · {people.length}</span>
               <span className="font-mono text-xs font-semibold text-blue-500">{fmt(pool, locale, currency)}</span>
             </div>
             <div className="flex flex-col gap-2 overflow-y-auto flex-1">
@@ -409,7 +410,7 @@ export default function Splitter() {
 
         {perPerson.length > 0 && pool > 0 && (
           <div className="flex flex-col gap-2">
-            <div className="text-[10px] font-mono font-semibold tracking-widest text-slate-400 dark:text-zinc-600 uppercase">{t("splitter.distribution")}</div>
+            <div className={cn(TYPE.label, "font-mono")}>{t("splitter.distribution")}</div>
             <div className="h-8 rounded-lg overflow-hidden flex border border-slate-200 dark:border-zinc-800">
               {perPerson.map((p) => (
                 <div key={p.id}

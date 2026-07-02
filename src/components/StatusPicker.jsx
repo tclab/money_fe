@@ -13,7 +13,7 @@ export const STATUS_ICON = {
   unpaid:    { ch: "",  cls: "text-rose-400 border border-dashed border-rose-400" },
   expected:  { ch: "",  cls: "text-amber-400 border border-dashed border-amber-400" },
   verify:    { ch: "!", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/40" },
-  scheduled: { ch: "◷", cls: "text-blue-400 bg-blue-500/10 border border-blue-500/40" },
+  scheduled: { ch: "◷", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/40" },
 };
 
 // Statuses offered in the dropdown, scoped per feature so income and expenses

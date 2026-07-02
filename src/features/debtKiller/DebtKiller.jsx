@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Cloud, Pencil, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, fmt } from "../../lib/utils.js";
+import { TYPE } from "../../lib/tokens.js";
 import {
   fetchDebts, createDebt, deleteDebt, updateDebt, distributePayment,
   createDebtPayment, deleteDebtPayment,
@@ -324,7 +325,9 @@ export default function DebtKiller() {
           style={{ gridTemplateColumns: COLS }}
           className={cn(
             "grid gap-3.5 items-center px-3.5 py-3 text-[13px] cursor-pointer transition-colors",
-            isOpen ? "bg-slate-50 dark:bg-zinc-800/40" : "hover:bg-slate-50 dark:hover:bg-zinc-800/30"
+            isOpen
+              ? "bg-slate-50 dark:bg-zinc-800/40"
+              : cn(index % 2 === 0 ? "bg-slate-50/50 dark:bg-zinc-800/30" : "", "hover:bg-slate-50 dark:hover:bg-zinc-800/30")
           )}>
           {/* Loan: description + label + person */}
           <div className="min-w-0">
@@ -374,7 +377,7 @@ export default function DebtKiller() {
         {/* Expanded abono history */}
         {isOpen && (
           <div className="px-3.5 pt-1 pb-4 bg-slate-50 dark:bg-zinc-800/40">
-            <div className="text-[10px] font-mono text-slate-400 dark:text-zinc-500 tracking-widest uppercase mb-2">{t("debt.history")}</div>
+            <div className={cn(TYPE.label, "font-mono mb-2")}>{t("debt.history")}</div>
             <div className="flex flex-col gap-1.5">
               {ordered.map(pay => (
                 <div key={pay.id} className="flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-xs">
@@ -503,7 +506,7 @@ export default function DebtKiller() {
               <div className="grid grid-cols-3 gap-3">
                 {kpis.map(k => (
                   <div key={k.label} className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
-                    <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{k.label}</div>
+                    <div className={cn(TYPE.label, "font-mono")}>{k.label}</div>
                     <div className="text-lg font-bold font-mono mt-1.5" style={{ color: k.color }}>{k.value}</div>
                     <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{k.sub}</div>
                   </div>
@@ -518,7 +521,7 @@ export default function DebtKiller() {
                   <div className="min-w-[760px]">
                     {/* Header */}
                     <div style={{ gridTemplateColumns: COLS }}
-                      className="grid gap-3.5 px-3.5 py-2.5 text-[10px] font-mono tracking-widest uppercase text-slate-400 dark:text-zinc-500 border-b border-slate-200 dark:border-zinc-800">
+                      className={cn(TYPE.label, "font-mono grid gap-3.5 px-3.5 py-2.5 border-b border-slate-200 dark:border-zinc-800")}>
                       <div>{t("debt.colLoan")}</div>
                       <div>{t("debt.colProgress")}</div>
                       <div className="text-right">{t("col.cantidad")}</div>
@@ -532,7 +535,7 @@ export default function DebtKiller() {
                     {/* Totals footer */}
                     <div style={{ gridTemplateColumns: COLS }}
                       className="grid gap-3.5 px-3.5 py-3 items-center text-[13px] border-t border-slate-200 dark:border-zinc-800">
-                      <div className="text-[10px] font-mono tracking-widest uppercase text-slate-400 dark:text-zinc-500">
+                      <div className={cn(TYPE.label, "font-mono")}>
                         {t("debt.totals")} · {items.length}
                       </div>
                       <div />
@@ -556,7 +559,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setShowForm(false); setFormErrors({}); }}>
           <form onSubmit={handleCreate} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.newDebt")}</div>
+            <div className={cn(TYPE.label, "font-mono")}>{t("debt.newDebt")}</div>
             <div>
               <input placeholder={t("debt.description")} value={form.description}
                 onChange={e => { setForm(f => ({ ...f, description: e.target.value })); setFormErrors(fe => ({ ...fe, description: "" })); }}
@@ -612,7 +615,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAddingPayment(null)}>
           <form onSubmit={e => handleAddPayment(e, addingPayment)} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.addPayment")}</div>
+            <div className={cn(TYPE.label, "font-mono")}>{t("debt.addPayment")}</div>
             {paymentAmountFocused ? (
               <input required type="number" min="0" step="any" autoFocus value={paymentForm.amount || ""}
                 onChange={e => { setPaymentForm(f => ({ ...f, amount: e.target.value })); setPaymentError(""); }}
@@ -644,7 +647,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeBulkForm}>
           <form onSubmit={handleBulkPayment} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.bulkPaymentTitle")}</div>
+            <div className={cn(TYPE.label, "font-mono")}>{t("debt.bulkPaymentTitle")}</div>
             {bulkAmountFocused ? (
               <input required type="number" min="0" step="any" autoFocus value={bulkForm.amount || ""}
                 onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, amount: e.target.value })); }}
@@ -680,7 +683,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmDeleteDebt(null)}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-4 shadow-xl">
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("expense.deleteTitle")}</div>
+            <div className={cn(TYPE.label, "font-mono")}>{t("expense.deleteTitle")}</div>
             <p className="text-sm text-slate-700 dark:text-zinc-300">
               {t("expense.deleteDesc").replace("{name}", confirmDeleteDebt.description)}
             </p>
@@ -699,7 +702,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditingDebt(null)}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("debt.editDebt")}</div>
+            <div className={cn(TYPE.label, "font-mono")}>{t("debt.editDebt")}</div>
             <input
               placeholder={t("debt.description")}
               value={editingDebt.description}

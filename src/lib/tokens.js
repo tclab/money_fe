@@ -1,6 +1,20 @@
 // Semantic design tokens. Color encodes STATE, not which page you are on.
 // Import these instead of hardcoding per-page colors.
 
+// Typography roles. Five sizes, one meaning each. Import instead of hardcoding.
+//   title  22px/800  page title (PageHeader)
+//   hero   40px/700  single big KPI number
+//   metric 20px/600  header + card metric values
+//   label  11px/600  uppercase section labels, .16em tracking, zinc-500
+//   body   13px/400  descriptive prose, sans stack
+export const TYPE = {
+  title:  "text-[22px] font-extrabold tracking-tight",
+  hero:   "text-[40px] leading-none font-bold tracking-tight font-mono",
+  metric: "text-xl font-semibold",
+  label:  "text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500",
+  body:   "text-[13px] font-normal font-sans",
+};
+
 // Amount / text tone by meaning.
 export const TONE = {
   positive: "text-emerald-600 dark:text-emerald-400", // paid, received, money-in, surplus
@@ -30,7 +44,7 @@ export const SECTION_COLORS = ["#34d399", "#60a5fa", "#fbbf24", "#f87171", "#a78
 export const AMOUNT_CLS = {
   paid:      TONE.positive,
   unpaid:    TONE.negative,
-  scheduled: "text-blue-600 dark:text-blue-400",
+  scheduled: TONE.pending,
   verify:    TONE.pending,
   received:  TONE.positive,
   expected:  TONE.pending,

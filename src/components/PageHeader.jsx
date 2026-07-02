@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useI18n } from "../i18n/index.jsx";
 import { cn, fmtMonth } from "../lib/utils.js";
-import { SURFACE, TONE } from "../lib/tokens.js";
+import { SURFACE, TONE, TYPE } from "../lib/tokens.js";
 import MonthYearPicker from "./MonthYearPicker.jsx";
 
 const stepMonth = (d, delta) => new Date(d.getFullYear(), d.getMonth() + delta, 1);
@@ -57,15 +57,15 @@ export default function PageHeader({ viewDate, onSelectMonth, title, meta, metri
             </button>
           </div>
         ) : null}
-        <div className="text-2xl font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-2">{title}</div>
-        {meta && <div className="text-xs font-mono text-slate-400 dark:text-zinc-500 mt-0.5">{meta}</div>}
+        <div className={cn(TYPE.title, "text-slate-900 dark:text-zinc-50 font-mono mt-2")}>{title}</div>
+        {meta && <div className={cn(TYPE.body, "text-slate-400 dark:text-zinc-500 mt-0.5")}>{meta}</div>}
       </div>
 
       <div className="flex items-center gap-5 font-mono">
         {metrics.map((m, i) => (
           <div key={i} className="text-right">
-            <div className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-zinc-500">{m.label}</div>
-            <div className={cn("text-base font-semibold mt-0.5", TONE[m.tone] || TONE.neutral)}>{m.value}</div>
+            <div className={TYPE.label}>{m.label}</div>
+            <div className={cn(TYPE.metric, "mt-0.5", TONE[m.tone] || TONE.neutral)}>{m.value}</div>
           </div>
         ))}
         {action}

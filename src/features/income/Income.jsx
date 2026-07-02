@@ -14,7 +14,7 @@ import StatusPicker from "../../components/StatusPicker.jsx";
 import PageHeader from "../../components/PageHeader.jsx";
 import ProgressBar from "../../components/ProgressBar.jsx";
 import RowActions from "../../components/RowActions.jsx";
-import { SECTION_COLORS, TONE } from "../../lib/tokens.js";
+import { SECTION_COLORS, TONE, TYPE } from "../../lib/tokens.js";
 
 export default function Income() {
   const { t, locale, currency } = useI18n();
@@ -259,7 +259,7 @@ export default function Income() {
                     <tbody>
                       <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
                         <td className="py-2.5 px-3">
-                          <span style={{ color }} className="text-[10px]">■</span>
+                          <span style={{ background: color }} className="inline-block w-2 h-2 rounded-full" />
                         </td>
                         <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">
                           <span className="flex items-center gap-2">
@@ -293,8 +293,8 @@ export default function Income() {
                                   {...draggableProvided.draggableProps}
                                   onClick={() => !isPastMonth && !snapshot.isDragging && setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
                                   className={cn(
-                                    "border-b border-dashed border-slate-100 dark:border-zinc-800/60 transition-colors",
-                                    i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-900/40" : "",
+                                    "border-b border-slate-100 dark:border-zinc-800/60 transition-colors",
+                                    i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : "",
                                     isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer",
                                     snapshot.isDragging ? "bg-emerald-50 dark:bg-emerald-950/20 shadow-md" : ""
                                   )}>
@@ -341,22 +341,9 @@ export default function Income() {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 grid grid-cols-4 gap-4 items-baseline bg-slate-50 dark:bg-zinc-900/50 font-mono">
-          <div>
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t("income.finalBalance")}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("income.received")}</div>
-            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmt(receivedTotal, locale, currency)}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("income.pending")}</div>
-            <div className="text-base font-bold text-amber-600 dark:text-amber-400">{fmt(pending, locale, currency)}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.total")}</div>
-            <div className="text-base font-bold text-slate-900 dark:text-zinc-100">{fmt(grandTotal, locale, currency)}</div>
-          </div>
+        <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 flex items-center justify-between bg-slate-50 dark:bg-zinc-900/50 font-mono">
+          <div className={TYPE.label}>{t("income.finalBalance")}</div>
+          <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 pr-16">{fmt(grandTotal, locale, currency)}</div>
         </div>
       </div>
 

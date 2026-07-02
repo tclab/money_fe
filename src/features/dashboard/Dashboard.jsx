@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Cloud, TrendingUp } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, toMonthKey, fmt } from "../../lib/utils.js";
+import { TYPE } from "../../lib/tokens.js";
 import { fetchIncome, fetchExpenses, fetchCategories } from "../../api.js";
 import PageHeader from "../../components/PageHeader.jsx";
 import ProgressBar from "../../components/ProgressBar.jsx";
@@ -84,7 +85,7 @@ export default function Dashboard() {
   );
 
   const CARD = "rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900";
-  const LABEL = "text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase";
+  const LABEL = cn(TYPE.label, "font-mono");
 
   const savedPctLabel = `${savingsRate >= 0 ? "" : "-"}${Math.abs(savingsRate * 100).toFixed(1)}%`;
 
@@ -108,10 +109,10 @@ export default function Dashboard() {
             <span className={cn("font-mono text-6xl font-bold tracking-tight", positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
               {(savingsRate * 100).toFixed(1)}<span className="text-3xl align-top">%</span>
             </span>
-            <span className="mb-2 text-xs text-slate-500 dark:text-zinc-400">{t("dashboard.ofIncomeKept")}</span>
+            <span className={cn("mb-2", TYPE.body, "text-slate-500 dark:text-zinc-400")}>{t("dashboard.ofIncomeKept")}</span>
           </div>
           <ProgressBar value={savingsPct} max={100} tone={positive ? "positive" : "negative"} height="h-2.5" className="mt-4" />
-          <p className="mt-3 text-xs text-slate-500 dark:text-zinc-400">
+          <p className={cn("mt-3", TYPE.body, "text-slate-500 dark:text-zinc-400")}>
             {t("dashboard.netOfEarned")
               .replace("{net}", fmt(net, locale, currency))
               .replace("{income}", fmt(incomeTotal, locale, currency))}
@@ -124,15 +125,15 @@ export default function Dashboard() {
             : "border-rose-200 dark:border-rose-500/25 bg-rose-50/50 dark:bg-rose-500/[0.06]"
         )}>
           <div className="flex items-center justify-between">
-            <span className={cn("text-[10px] font-mono tracking-widest uppercase", positive ? "text-emerald-700/70 dark:text-emerald-400/70" : "text-rose-700/70 dark:text-rose-400/70")}>
+            <span className={cn("text-[11px] font-semibold uppercase tracking-[0.16em] font-mono", positive ? "text-emerald-700/70 dark:text-emerald-400/70" : "text-rose-700/70 dark:text-rose-400/70")}>
               {t("dashboard.netThisMonth")}
             </span>
             <TrendingUp size={16} className={positive ? "text-emerald-500" : "text-rose-500 rotate-180"} />
           </div>
-          <div className={cn("mt-3 font-mono text-4xl font-bold tracking-tight", positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+          <div className={cn("mt-3", TYPE.hero, positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
             {positive ? "+" : "-"}{fmt(Math.abs(net), locale, currency)}
           </div>
-          <p className="mt-4 text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
+          <p className={cn("mt-4", TYPE.body, "leading-relaxed text-slate-500 dark:text-zinc-400")}>
             {positive ? t("dashboard.netPositive") : t("dashboard.netNegative")}
           </p>
         </div>
@@ -146,7 +147,7 @@ export default function Dashboard() {
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
           </div>
           <div className="mt-2 font-mono text-3xl font-bold tracking-tight text-slate-800 dark:text-zinc-100">{fmt(incomeTotal, locale, currency)}</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400">
+          <div className={cn("mt-1", TYPE.body, "text-slate-500 dark:text-zinc-400")}>
             {income.length} {t("income.transactions")} · {incomeCats.length} {t("income.sources")}
           </div>
         </div>
@@ -156,7 +157,7 @@ export default function Dashboard() {
             <span className="h-2 w-2 rounded-full bg-rose-500" />
           </div>
           <div className="mt-2 font-mono text-3xl font-bold tracking-tight text-slate-800 dark:text-zinc-100">{fmt(expenseTotal, locale, currency)}</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400">
+          <div className={cn("mt-1", TYPE.body, "text-slate-500 dark:text-zinc-400")}>
             {expenses.length} {t("expenses.transactions")} · {expenseCats.length} {t("expenses.categories")}
           </div>
         </div>
@@ -165,7 +166,7 @@ export default function Dashboard() {
       {/* Settled this month */}
       <div className={CARD}>
         <div className="border-b border-slate-200 dark:border-zinc-800 px-6 py-4">
-          <span className="text-[11px] font-mono tracking-widest uppercase font-semibold text-slate-500 dark:text-zinc-400">{t("dashboard.settled")}</span>
+          <span className={cn(TYPE.label, "font-mono")}>{t("dashboard.settled")}</span>
         </div>
         <div className="grid gap-6 p-6 sm:grid-cols-2 font-mono">
           {/* income received vs expected */}
@@ -220,7 +221,7 @@ function BreakdownCard({ title, total, rows, tone, locale, currency, card, empty
   return (
     <div className={card}>
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 px-6 py-4">
-        <span className="text-[11px] font-mono tracking-widest uppercase font-semibold text-slate-500 dark:text-zinc-400">{title}</span>
+        <span className={cn(TYPE.label, "font-mono")}>{title}</span>
         <span className="font-mono text-xs text-slate-400 dark:text-zinc-500">{fmt(total, locale, currency)}</span>
       </div>
       <div className="space-y-3.5 px-6 py-5">
