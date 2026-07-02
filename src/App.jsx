@@ -1,25 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, Menu, X, Wallet, BookOpen, Users, Target, Settings, LogOut } from "lucide-react";
+import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Users, Target, LogOut, ChevronDown } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
-import Modal from "./components/Modal.jsx";
-import Btn from "./components/Btn.jsx";
 import Login from "./auth/Login.jsx";
+import Dashboard from "./features/dashboard/Dashboard.jsx";
 import Expenses from "./features/expenses/Expenses.jsx";
+import Income from "./features/income/Income.jsx";
 import Splitter from "./features/splitter/Splitter.jsx";
 import DebtKiller from "./features/debtKiller/DebtKiller.jsx";
 
 export default function App() {
   const { t, lang, setLang, theme, setTheme } = useI18n();
-  const { session, loading, signOut } = useAuth();
-  const [tab, setTab] = useState("expenses");
+  const { session, user, loading, signOut } = useAuth();
+  const [tab, setTab] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef();
+
+  const userName = (user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User");
+  const userInitial = userName.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handler = (e) => { if (!userMenuRef.current?.contains(e.target)) setUserMenuOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [userMenuOpen]);
   const navItems = [
+    { id: "dashboard", label: t("nav.dashboard"), Icon: LayoutDashboard },
     { id: "expenses", label: t("nav.expenses"), Icon: BookOpen },
+    { id: "income", label: t("nav.income"), Icon: TrendingUp },
     { id: "splitter", label: t("nav.splitter"), Icon: Users },
     { id: "debtKiller", label: t("nav.debtKiller"), Icon: Target },
   ];
@@ -41,36 +54,74 @@ export default function App() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full gap-1">
-      {/* Brand */}
-      <div className={cn("flex items-center mb-4", collapsed ? "justify-center" : "gap-2.5 px-1")}>
-        <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center shrink-0">
-          <Wallet size={14} className="text-emerald-600 dark:text-emerald-400" />
+      {/* Brand — click to collapse/expand the sidebar */}
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        title={t("nav.menu")}
+        className={cn("flex items-center mb-4 rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-zinc-800", collapsed ? "justify-center p-0.5" : "gap-2.5 px-1 py-0.5")}
+      >
+        <div className={cn(
+          "rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center shrink-0 transition-all",
+          collapsed ? "w-10 h-10" : "w-9 h-9"
+        )}>
+          <Wallet size={collapsed ? 20 : 18} className="text-emerald-600 dark:text-emerald-400" />
         </div>
         {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("expenses.brand")}</span>}
-      </div>
-
-      <div className="px-1 mb-1 flex items-center gap-2">
-        <button onClick={() => setCollapsed((v) => !v)} className="text-slate-400 dark:text-zinc-600 hover:text-slate-600 dark:hover:text-zinc-400 transition-colors">
-          <Menu size={14} />
-        </button>
-        {!collapsed && (
-          <span className="font-mono text-xs font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-widest">{t("nav.menu")}</span>
-        )}
-      </div>
+      </button>
 
       <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
         {navItems.map(({ id, label, Icon }) => <NavItem key={id} id={id} label={label} Icon={Icon} />)}
       </div>
+    </div>
+  );
 
-      <div className="mt-auto">
-        <div className="border-t border-slate-200 dark:border-zinc-800 pt-3">
-          <button onClick={() => setPrefsOpen(true)}
-            className={cn("w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors", collapsed ? "justify-center" : "")}>
-            <Settings size={15} className="shrink-0" />
-            {!collapsed && <span className="text-xs font-mono font-medium">{t("nav.settings")}</span>}
+  // Language segmented pill + theme toggle, shared by the top bar and mobile bar.
+  const langThemeControls = (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden text-xs font-mono font-semibold">
+        {[{ code: "es", label: "ES" }, { code: "en", label: "EN" }].map(({ code, label }) => (
+          <button key={code} onClick={() => setLang(code)}
+            className={cn("px-2.5 py-1.5 transition-colors",
+              lang === code
+                ? "bg-emerald-500 text-white"
+                : "text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800"
+            )}>
+            {label}
           </button>
-        </div>
+        ))}
       </div>
+      <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        title={theme === "dark" ? t("theme.light") : t("theme.dark")}
+        className="flex items-center justify-center rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+        {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+      </button>
+    </div>
+  );
+
+  // Avatar + name + chevron, with a dropdown holding sign out.
+  const userMenu = (
+    <div className="relative" ref={userMenuRef}>
+      <button onClick={() => setUserMenuOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-mono font-bold shrink-0">{userInitial}</span>
+        <span className="hidden sm:block max-w-[140px] truncate font-mono text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
+        <ChevronDown size={14} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", userMenuOpen && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {userMenuOpen && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+            className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
+            <div className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800">
+              <div className="font-mono text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
+              {user?.email && <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
+            </div>
+            <button onClick={() => { setUserMenuOpen(false); signOut(); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+              <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 
@@ -93,7 +144,7 @@ export default function App() {
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
-            {tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
+            {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -135,63 +186,28 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="flex-1 p-4 md:p-6 overflow-auto mt-14 md:mt-0 min-h-screen">
-        <AnimatePresence mode="wait">
-          <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
-            {tab === "expenses" && <Expenses />}
-            {tab === "splitter" && <Splitter />}
-            {tab === "debtKiller" && <DebtKiller />}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      {/* Content column: desktop top bar + main */}
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Desktop top bar */}
+        <header className="hidden md:flex items-center justify-end gap-3 h-14 shrink-0 px-6 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800">
+          {langThemeControls}
+          <div className="w-px h-6 bg-slate-200 dark:bg-zinc-800" />
+          {userMenu}
+        </header>
 
-      {/* Preferences modal */}
-      <Modal open={prefsOpen} onClose={() => setPrefsOpen(false)} title={t("nav.settings")}
-        actions={<Btn variant="primary" size="md" onClick={() => setPrefsOpen(false)}>{t("btn.save")}</Btn>}>
-        <div className="space-y-5">
-          {/* Language */}
-          <div>
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase mb-2">{t("prefs.language")}</div>
-            <div className="flex gap-2">
-              {[{ code: "es", label: "Español" }, { code: "en", label: "English" }].map(({ code, label }) => (
-                <button key={code} onClick={() => setLang(code)}
-                  className={cn("flex-1 py-2 rounded-lg border text-sm font-mono font-medium transition",
-                    lang === code
-                      ? "bg-emerald-600 border-emerald-600 text-white"
-                      : "border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
-                  )}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Theme */}
-          <div>
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase mb-2">{t("prefs.theme")}</div>
-            <div className="flex gap-2">
-              {[{ value: "light", label: t("theme.light"), Icon: Sun }, { value: "dark", label: t("theme.dark"), Icon: Moon }].map(({ value, label, Icon }) => (
-                <button key={value} onClick={() => setTheme(value)}
-                  className={cn("flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-mono font-medium transition",
-                    theme === value
-                      ? "bg-emerald-600 border-emerald-600 text-white"
-                      : "border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
-                  )}>
-                  <Icon size={14} /> {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Account */}
-          <div className="border-t border-slate-200 dark:border-zinc-800 pt-4">
-            <Btn variant="danger" size="md" className="w-full justify-center" onClick={() => signOut()}>
-              <LogOut size={14} /> {t("auth.signOut")}
-            </Btn>
-          </div>
-        </div>
-      </Modal>
+        {/* Main content */}
+        <main className="flex-1 p-4 md:p-6 overflow-auto mt-14 md:mt-0 min-h-screen md:min-h-0">
+          <AnimatePresence mode="wait">
+            <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+              {tab === "dashboard" && <Dashboard />}
+              {tab === "expenses" && <Expenses />}
+              {tab === "income" && <Income />}
+              {tab === "splitter" && <Splitter />}
+              {tab === "debtKiller" && <DebtKiller />}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
     </div>
   );
 }

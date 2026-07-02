@@ -12,6 +12,16 @@ function mapExpense(e) {
   };
 }
 
+function mapIncome(e) {
+  return {
+    id: e.id,
+    name: e.income,
+    amount: e.value,
+    status: e.status ?? "expected",
+    category_id: e.category_id,
+  };
+}
+
 // Centralized fetch: attaches the Supabase access token to every request and
 // signs the user out on a 401 so the app falls back to the login screen.
 async function authFetch(path, { method = "GET", body, headers } = {}) {
@@ -37,9 +47,10 @@ async function authFetch(path, { method = "GET", body, headers } = {}) {
 
 // ─── CATEGORIES & EXPENSES ──────────────────────────────────────────────────
 
-export async function fetchCategories(includeDeleted = false) {
-  const path = includeDeleted ? "/categories?include_deleted=true" : "/categories";
-  const res = await authFetch(path);
+export async function fetchCategories(kind, includeDeleted = false) {
+  const params = new URLSearchParams();
+  if (includeDeleted) params.set("include_deleted", "true");
+  const res = await authFetch(`/categories/${kind}${params.size ? "?" + params : ""}`);
   if (!res.ok) throw new Error("Failed to fetch categories");
   const data = await res.json();
   return data.categories ?? data;
@@ -64,8 +75,8 @@ export async function upsertExpenseStatus(expenseId, month, { status, value } = 
   return res.json();
 }
 
-export async function createCategory(name) {
-  const res = await authFetch("/categories", { method: "POST", body: { name } });
+export async function createCategory(kind, name) {
+  const res = await authFetch(`/categories/${kind}`, { method: "POST", body: { name } });
   if (!res.ok) throw new Error("Failed to create category");
   return res.json();
 }
@@ -89,18 +100,18 @@ export async function reorderExpenses(items) {
   if (!res.ok) throw new Error("Failed to reorder expenses");
 }
 
-export async function deleteCategory(id) {
-  const res = await authFetch(`/categories/${id}`, { method: "DELETE" });
+export async function deleteCategory(kind, id) {
+  const res = await authFetch(`/categories/${kind}/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete category");
 }
 
-export async function reorderCategories(items) {
-  const res = await authFetch("/categories/reorder", { method: "PUT", body: { items } });
+export async function reorderCategories(kind, items) {
+  const res = await authFetch(`/categories/${kind}/reorder`, { method: "PUT", body: { items } });
   if (!res.ok) throw new Error("Failed to reorder categories");
 }
 
-export async function updateCategory(id, name) {
-  const res = await authFetch(`/categories/${id}`, { method: "PUT", body: { name } });
+export async function updateCategory(kind, id, name) {
+  const res = await authFetch(`/categories/${kind}/${id}`, { method: "PUT", body: { name } });
   if (!res.ok) throw new Error("Failed to update category");
   return res.json();
 }
@@ -113,6 +124,56 @@ export async function updateExpense(id, patch) {
   const res = await authFetch(`/expenses/${id}`, { method: "PUT", body });
   if (!res.ok) throw new Error("Failed to update expense");
   return mapExpense(await res.json());
+}
+
+// ─── INCOME ─────────────────────────────────────────────────────────────────
+
+export async function fetchIncome(categoryId, month) {
+  const params = new URLSearchParams();
+  if (categoryId) params.set("category_id", categoryId);
+  if (month) params.set("month", month);
+  const res = await authFetch(`/income${params.size ? "?" + params : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch income");
+  const data = await res.json();
+  return (data.income ?? data).map(mapIncome);
+}
+
+export async function createIncome(categoryId, name, amount) {
+  const res = await authFetch("/income", {
+    method: "POST",
+    body: { category_id: categoryId, income: name, value: amount },
+  });
+  if (!res.ok) throw new Error("Failed to create income");
+  return mapIncome(await res.json());
+}
+
+export async function updateIncome(id, patch) {
+  const body = {};
+  if (patch.income !== undefined) body.income = patch.income;
+  if (patch.value !== undefined) body.value = patch.value;
+  if (patch.status !== undefined) body.status = patch.status;
+  const res = await authFetch(`/income/${id}`, { method: "PUT", body });
+  if (!res.ok) throw new Error("Failed to update income");
+  return mapIncome(await res.json());
+}
+
+export async function deleteIncome(id) {
+  const res = await authFetch(`/income/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete income");
+}
+
+export async function reorderIncome(items) {
+  const res = await authFetch("/income/reorder", { method: "PUT", body: { items } });
+  if (!res.ok) throw new Error("Failed to reorder income");
+}
+
+export async function upsertIncomeStatus(incomeId, month, { status, value } = {}) {
+  const body = { income_id: incomeId, month };
+  if (status !== undefined) body.status = status;
+  if (value !== undefined) body.value = value;
+  const res = await authFetch("/income-status", { method: "PUT", body });
+  if (!res.ok) throw new Error("Failed to update income status");
+  return res.json();
 }
 
 // ─── SPLITTER ─────────────────────────────────────────────────────────────────

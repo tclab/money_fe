@@ -8,6 +8,10 @@ import {
   fetchPeople, createPerson,
 } from "../../api.js";
 import ReportMenu from "../../components/ReportMenu.jsx";
+import PageHeader from "../../components/PageHeader.jsx";
+import ProgressBar from "../../components/ProgressBar.jsx";
+import RowActions from "../../components/RowActions.jsx";
+import Btn from "../../components/Btn.jsx";
 
 export default function DebtKiller() {
   const { t, locale, currency, theme } = useI18n();
@@ -275,8 +279,9 @@ export default function DebtKiller() {
     </div>
   );
 
-  const PAID_COLOR = "#34d399";
-  const UNPAID_COLOR = "#f87171";
+  const PAID_COLOR = "#34d399";   // positive / emerald
+  const UNPAID_COLOR = "#fb7185"; // negative / rose (unified, was #f87171)
+  const PENDING_COLOR = "#fbbf24"; // pending / amber (was blue #60a5fa)
   const inputCls = "w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-50 placeholder-slate-400 dark:placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-emerald-500";
 
   // Shared grid template for the dense ledger table (header / rows / footer)
@@ -318,8 +323,8 @@ export default function DebtKiller() {
           </div>
           {/* Progress: mini bar + percent */}
           <div className="flex items-center gap-2.5">
-            <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700 overflow-hidden min-w-[40px]">
-              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+            <div className="flex-1 min-w-[40px]">
+              <ProgressBar value={paid} max={d.amount || 0} tone="positive" height="h-1.5" />
             </div>
             <span className={cn("font-mono text-xs w-9 text-right shrink-0",
               pct >= 99.9 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-zinc-400")}>
@@ -344,16 +349,11 @@ export default function DebtKiller() {
             )}
           </div>
           {/* Acción */}
-          <div className="flex items-center gap-1.5 justify-end">
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditingDebt({ id: d.id, description: d.description ?? "", amount: String(d.amount ?? ""), person_id: d.person_id ?? "", due_date: d.due_date ?? "" }); }}
-              className="text-slate-300 dark:text-zinc-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
-              <Pencil size={13} />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteDebt(d); }}
-              className="text-slate-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-400 transition-colors">
-              <Trash2 size={13} />
-            </button>
+          <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+            <RowActions items={[
+              { label: t("actions.rename"), icon: Pencil, onClick: () => setEditingDebt({ id: d.id, description: d.description ?? "", amount: String(d.amount ?? ""), person_id: d.person_id ?? "", due_date: d.due_date ?? "" }) },
+              { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setConfirmDeleteDebt(d) },
+            ]} />
           </div>
         </div>
 
@@ -368,7 +368,7 @@ export default function DebtKiller() {
                   <span className="flex-1 text-slate-500 dark:text-zinc-400 truncate">{t("debt.payment")} · {fmtPayDate(pay.date)}{pay.note ? ` · ${pay.note}` : ""}</span>
                   <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">{fmt(pay.amount, locale, currency)}</span>
                   <button onClick={(e) => { e.stopPropagation(); handleDeletePayment(d.id, pay.id); }}
-                    className="text-slate-300 dark:text-zinc-600 hover:text-red-400 transition-colors ml-1">
+                    className="text-slate-300 dark:text-zinc-600 hover:text-rose-400 transition-colors ml-1">
                     <Trash2 size={11} />
                   </button>
                 </div>
@@ -392,26 +392,21 @@ export default function DebtKiller() {
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
-        <div>
-          <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("flujo.loans")}</div>
-          <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.debtKiller")}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ReportMenu status={reportStatus} disabled={debts.length === 0} onSelect={handleReport} />
-          <button onClick={() => setShowBulkForm(v => !v)}
-            className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-            {t("debt.bulkPayment")}
-          </button>
-          <button onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-1.5 text-xs font-mono font-semibold px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">
-            <Plus size={13} /> {t("debt.newDebt")}
-          </button>
-        </div>
-      </div>
-
+    <div className="animate-fade-in space-y-2" style={{ fontVariantNumeric: "tabular-nums" }}>
+      <PageHeader
+        title={t("nav.debtKiller")}
+        meta={`${t("flujo.loans")} · ${debts.length} ${t("debt.activeLoans")}`}
+        action={
+          <div className="flex items-center gap-2">
+            <ReportMenu status={reportStatus} disabled={debts.length === 0} onSelect={handleReport} />
+            <Btn onClick={() => setShowBulkForm(v => !v)}>{t("debt.bulkPayment")}</Btn>
+            <Btn variant="primary" size="sm" onClick={() => setShowForm(v => !v)}>
+              <Plus size={13} /> {t("debt.newDebt")}
+            </Btn>
+          </div>
+        }
+      />
+      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
       {/* Tabs */}
       <div className="px-6 pt-4 flex gap-1 border-b border-slate-200 dark:border-zinc-800">
         {[
@@ -474,7 +469,7 @@ export default function DebtKiller() {
             ? [
                 { label: t("debt.totalToCollect"), value: fmt(total, locale, currency),     color: "#e4e4e7",   sub: `${items.length} ${t("debt.activeLoans")}` },
                 { label: t("debt.collected"),      value: fmt(paid, locale, currency),      color: PAID_COLOR,  sub: `${total > 0 ? Math.round(paid / total * 100) : 0}% ${t("debt.ofTotal")}` },
-                { label: t("debt.toReceive"),      value: fmt(remaining, locale, currency), color: "#60a5fa",   sub: t("debt.toCollect") },
+                { label: t("debt.toReceive"),      value: fmt(remaining, locale, currency), color: PENDING_COLOR, sub: t("debt.toCollect") },
               ]
             : [
                 { label: t("debt.totalDebt"), value: fmt(total, locale, currency),     color: UNPAID_COLOR, sub: `${items.length} ${t("debt.activeLoans")}` },
@@ -531,6 +526,7 @@ export default function DebtKiller() {
             </>
           );
         })()}
+      </div>
       </div>
 
       {/* Modal: New Debt */}
@@ -736,7 +732,7 @@ export default function DebtKiller() {
               {[
                 { label: t("debt.totalToCollect"), value: fmt(total, locale, currency),     color: isDark ? "#e4e4e7" : "#0f172a", sub: `${reportTarget.debts.length} ${t("debt.activeLoans")}` },
                 { label: t("debt.collected"),      value: fmt(totalPaid, locale, currency), color: "#34d399", sub: `${overallPct}% ${t("debt.ofTotal")}` },
-                { label: t("debt.toReceive"),      value: fmt(totalRem, locale, currency),  color: "#60a5fa", sub: t("debt.toCollect") },
+                { label: t("debt.toReceive"),      value: fmt(totalRem, locale, currency),  color: PENDING_COLOR, sub: t("debt.toCollect") },
               ].map(k => (
                 <div key={k.label} style={{ background: rp.card, borderRadius: 12, padding: "12px 16px", border: `1px solid ${rp.border}` }}>
                   <div style={{ color: rp.muted, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" }}>{k.label}</div>
@@ -790,7 +786,7 @@ export default function DebtKiller() {
                             {/* Pagado */}
                             <div style={{ textAlign: "right", color: "#34d399" }}>{fmt(paidAmt, locale, currency)}</div>
                             {/* Resta */}
-                            <div style={{ textAlign: "right", color: rem ? "#f87171" : rp.muted }}>{fmt(rem, locale, currency)}</div>
+                            <div style={{ textAlign: "right", color: rem ? "#fb7185" : rp.muted }}>{fmt(rem, locale, currency)}</div>
                             {/* Último abono */}
                             <div style={{ fontSize: 10, color: rp.muted }}>
                               {last ? `${fmtPayDate(last.date)} · ${fmt(last.amount, locale, currency)} · ${payments.length}×` : t("debt.noPayments")}
@@ -817,7 +813,7 @@ export default function DebtKiller() {
                       <div />
                       <div style={{ textAlign: "right", fontWeight: 700, color: rp.text }}>{fmt(total, locale, currency)}</div>
                       <div style={{ textAlign: "right", fontWeight: 700, color: "#34d399" }}>{fmt(totalPaid, locale, currency)}</div>
-                      <div style={{ textAlign: "right", fontWeight: 700, color: "#f87171" }}>{fmt(totalRem, locale, currency)}</div>
+                      <div style={{ textAlign: "right", fontWeight: 700, color: "#fb7185" }}>{fmt(totalRem, locale, currency)}</div>
                       <div />
                     </div>
                   </>

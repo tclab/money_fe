@@ -4,9 +4,9 @@ import { Plus, Trash2, ChevronDown, Cloud, GripVertical, Pencil, ArrowUp, ArrowD
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, toMonthKey, fmt } from "../../lib/utils.js";
 import {
-  fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense,
-  reorderExpenses, reorderCategories, createCategory, createExpense, updateCategory,
-  deleteExpense as deleteExpenseApi, deleteCategory as deleteCategoryApi,
+  fetchCategories, fetchIncome, upsertIncomeStatus, updateIncome,
+  reorderIncome, reorderCategories, createCategory, createIncome, updateCategory,
+  deleteIncome as deleteIncomeApi, deleteCategory as deleteCategoryApi,
 } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
 import Btn from "../../components/Btn.jsx";
@@ -16,11 +16,11 @@ import ProgressBar from "../../components/ProgressBar.jsx";
 import RowActions from "../../components/RowActions.jsx";
 import { SECTION_COLORS, TONE } from "../../lib/tokens.js";
 
-export default function Expenses() {
+export default function Income() {
   const { t, locale, currency } = useI18n();
   const today = new Date();
   const [categories, setCategories] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  const [income, setIncome] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null); // { id, section_id, name, amount }
@@ -28,10 +28,10 @@ export default function Expenses() {
   const [editingCategory, setEditingCategory] = useState(null); // null | { id, name }
   const [collapsed, setCollapsed] = useState(new Set());
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, name }
-  const [pendingDeleteExpense, setPendingDeleteExpense] = useState(null); // null | { id, name }
+  const [pendingDeleteIncome, setPendingDeleteIncome] = useState(null); // null | { id, name }
   const [editAmountFocused, setEditAmountFocused] = useState(false);
   const [newAmountFocused, setNewAmountFocused] = useState(false);
-  const [newExpense, setNewExpense] = useState(null); // null | { section_id, name, amount }
+  const [newIncome, setNewIncome] = useState(null); // null | { category_id, name, amount }
   const [viewDate, setViewDate] = useState(today);
 
   const monthKey = toMonthKey(viewDate);
@@ -41,11 +41,11 @@ export default function Expenses() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetchCategories("expense", isPastMonth),
-      fetchExpenses(null, monthKey),
-    ]).then(([secs, exps]) => {
+      fetchCategories("income", isPastMonth),
+      fetchIncome(null, monthKey),
+    ]).then(([secs, incs]) => {
       setCategories(secs);
-      setExpenses(exps);
+      setIncome(incs);
       setLoading(false);
     }).catch((e) => {
       setError(e.message);
@@ -55,34 +55,34 @@ export default function Expenses() {
 
   const grouped = categories.map((s) => ({
     ...s,
-    items: expenses.filter((e) => e.category_id === s.id),
+    items: income.filter((e) => e.category_id === s.id),
   }));
 
-  const all = expenses;
+  const all = income;
   const grandTotal = all.reduce((s, e) => s + e.amount, 0);
-  const paidTotal = all.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
-  const pending = grandTotal - paidTotal;
+  const receivedTotal = all.filter((e) => e.status === "received").reduce((s, e) => s + e.amount, 0);
+  const pending = grandTotal - receivedTotal;
 
   const handleStatusChange = async (id, newStatus) => {
-    const prev = expenses.find((e) => e.id === id);
-    setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
+    const prev = income.find((e) => e.id === id);
+    setIncome((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
     try {
-      await upsertExpenseStatus(id, monthKey, { status: newStatus });
+      await upsertIncomeStatus(id, monthKey, { status: newStatus });
     } catch {
-      setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
+      setIncome((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
     }
   };
 
   useEffect(() => { setEditAmountFocused(false); }, [editing?.id]);
-  useEffect(() => { setNewAmountFocused(false); }, [newExpense?.category_id]);
+  useEffect(() => { setNewAmountFocused(false); }, [newIncome?.category_id]);
 
-  const handleDeleteExpense = async () => {
-    if (!pendingDeleteExpense) return;
-    const { id } = pendingDeleteExpense;
-    setPendingDeleteExpense(null);
-    setExpenses((xs) => xs.filter((e) => e.id !== id));
+  const handleDeleteIncome = async () => {
+    if (!pendingDeleteIncome) return;
+    const { id } = pendingDeleteIncome;
+    setPendingDeleteIncome(null);
+    setIncome((xs) => xs.filter((e) => e.id !== id));
     try {
-      await deleteExpenseApi(id);
+      await deleteIncomeApi(id);
     } catch (e) {
       console.error(e);
     }
@@ -106,7 +106,7 @@ export default function Expenses() {
     const updated = reordered.map((c, i) => ({ ...c, position: i }));
     setCategories(updated);
     try {
-      await reorderCategories("expense", updated.map((c) => ({ id: c.id, position: c.position })));
+      await reorderCategories("income", updated.map((c) => ({ id: c.id, position: c.position })));
     } catch {
       setCategories(categories);
     }
@@ -120,7 +120,7 @@ export default function Expenses() {
     setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name } : c));
     setEditingCategory(null);
     try {
-      await updateCategory("expense", editingCategory.id, name);
+      await updateCategory("income", editingCategory.id, name);
     } catch {
       setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name: prev.name } : c));
     }
@@ -131,9 +131,9 @@ export default function Expenses() {
     const { id } = pendingDelete;
     setPendingDelete(null);
     setCategories((xs) => xs.filter((c) => c.id !== id));
-    setExpenses((xs) => xs.filter((e) => e.category_id !== id));
+    setIncome((xs) => xs.filter((e) => e.category_id !== id));
     try {
-      await deleteCategoryApi("expense", id);
+      await deleteCategoryApi("income", id);
     } catch (e) {
       console.error(e);
     }
@@ -144,22 +144,22 @@ export default function Expenses() {
     if (!name) return;
     setNewCategory(null);
     try {
-      const sec = await createCategory("expense", name);
+      const sec = await createCategory("income", name);
       setCategories((xs) => [...xs, sec]);
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleCreateExpense = async () => {
-    if (!newExpense) return;
-    const name = (newExpense.name || "").trim();
+  const handleCreateIncome = async () => {
+    if (!newIncome) return;
+    const name = (newIncome.name || "").trim();
     if (!name) return;
-    const draft = { ...newExpense, name };
-    setNewExpense(null);
+    const draft = { ...newIncome, name };
+    setNewIncome(null);
     try {
-      const exp = await createExpense(draft.category_id, draft.name, draft.amount);
-      setExpenses((xs) => [...xs, exp]);
+      const inc = await createIncome(draft.category_id, draft.name, draft.amount);
+      setIncome((xs) => [...xs, inc]);
     } catch (e) {
       console.error(e);
     }
@@ -167,16 +167,16 @@ export default function Expenses() {
 
   const saveEditing = async () => {
     if (!editing) return;
-    const prev = expenses.find((e) => e.id === editing.id);
-    setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount } : e));
+    const prev = income.find((e) => e.id === editing.id);
+    setIncome((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount } : e));
     setEditing(null);
     try {
       await Promise.all([
-        updateExpense(editing.id, { expense: editing.name }),
-        upsertExpenseStatus(editing.id, monthKey, { value: editing.amount }),
+        updateIncome(editing.id, { income: editing.name }),
+        upsertIncomeStatus(editing.id, monthKey, { value: editing.amount }),
       ]);
     } catch {
-      setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount } : e));
+      setIncome((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount } : e));
     }
   };
 
@@ -185,17 +185,17 @@ export default function Expenses() {
     const { source, destination } = result;
     if (source.droppableId !== destination.droppableId || source.index === destination.index) return;
     const catId = source.droppableId;
-    const catExpenses = expenses.filter((e) => e.category_id === catId);
-    const reordered = [...catExpenses];
+    const catIncome = income.filter((e) => e.category_id === catId);
+    const reordered = [...catIncome];
     const [moved] = reordered.splice(source.index, 1);
     reordered.splice(destination.index, 0, moved);
     const updated = reordered.map((e, i) => ({ ...e, position: i }));
-    setExpenses((prev) => [
+    setIncome((prev) => [
       ...prev.filter((e) => e.category_id !== catId),
       ...updated,
     ]);
     try {
-      await reorderExpenses(updated.map((e) => ({ id: e.id, position: e.position })));
+      await reorderIncome(updated.map((e) => ({ id: e.id, position: e.position })));
     } catch (err) {
       console.error(err);
     }
@@ -217,16 +217,16 @@ export default function Expenses() {
     <div className="animate-fade-in space-y-2" style={{ fontVariantNumeric: "tabular-nums" }}>
       <PageHeader
         viewDate={viewDate} onSelectMonth={setViewDate}
-        title={t("expenses.title")}
-        meta={`${all.length} ${t("expenses.transactions")} · ${categories.length} ${t("expenses.categories")}`}
+        title={t("income.title")}
+        meta={`${all.length} ${t("income.transactions")} · ${categories.length} ${t("income.sources")}`}
         metrics={[
-          { label: t("summary.paid"), value: fmt(paidTotal, locale, currency), tone: "positive" },
-          { label: t("expenses.pending"), value: fmt(pending, locale, currency), tone: "negative" },
+          { label: t("income.received"), value: fmt(receivedTotal, locale, currency), tone: "positive" },
+          { label: t("income.pending"), value: fmt(pending, locale, currency), tone: "pending" },
           { label: t("summary.total"), value: fmt(grandTotal, locale, currency), tone: "neutral" },
         ]}
         action={!isPastMonth && (
           <Btn variant="primary" size="sm" onClick={() => setNewCategory("")}>
-            <Plus size={13} /> {t("expenses.newCategory")}
+            <Plus size={13} /> {t("income.newCategory")}
           </Btn>
         )}
       />
@@ -237,7 +237,7 @@ export default function Expenses() {
             <thead>
               <tr className="border-b border-slate-200 dark:border-zinc-800">
                 <th className="w-8 py-2 px-3" />
-                <th className="text-left py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium">{t("col.expense")}</th>
+                <th className="text-left py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium">{t("col.income")}</th>
                 <th className="text-right py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-36">{t("col.value")}</th>
                 <th className="text-center py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-16">{t("col.status")}</th>
               </tr>
@@ -245,10 +245,10 @@ export default function Expenses() {
             <DragDropContext onDragEnd={handleDragEnd}>
               {grouped.map((sec, si) => {
                 const catTotal = sec.items.reduce((s, e) => s + e.amount, 0);
-                const catPaid = sec.items.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
+                const catReceived = sec.items.filter((e) => e.status === "received").reduce((s, e) => s + e.amount, 0);
                 const color = SECTION_COLORS[si % SECTION_COLORS.length];
                 const catActions = [
-                  { label: t("actions.add"), icon: Plus, onClick: () => setNewExpense({ category_id: sec.id, name: "", amount: 0 }) },
+                  { label: t("actions.add"), icon: Plus, onClick: () => setNewIncome({ category_id: sec.id, name: "", amount: 0 }) },
                   { label: t("actions.rename"), icon: Pencil, onClick: () => setEditingCategory({ id: sec.id, name: sec.name }) },
                   { label: t("actions.moveUp"), icon: ArrowUp, onClick: () => moveCategory(sec.id, -1), disabled: si === 0 },
                   { label: t("actions.moveDown"), icon: ArrowDown, onClick: () => moveCategory(sec.id, 1), disabled: si === grouped.length - 1 },
@@ -272,7 +272,7 @@ export default function Expenses() {
                             {sec.name}
                             <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {sec.items.length} items</span>
                             <span className="hidden sm:block w-20">
-                              <ProgressBar value={catPaid} max={catTotal} tone="positive" height="h-1" />
+                              <ProgressBar value={catReceived} max={catTotal} tone="positive" height="h-1" />
                             </span>
                           </span>
                         </td>
@@ -310,7 +310,7 @@ export default function Expenses() {
                                       )}
                                       {!isPastMonth && (
                                         <button
-                                          onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
+                                          onClick={() => setPendingDeleteIncome({ id: e.id, name: e.name })}
                                           className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
                                         >
                                           <Trash2 size={10} />
@@ -323,7 +323,7 @@ export default function Expenses() {
                                     {fmt(e.amount, locale, currency)}
                                   </td>
                                   <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
-                                    <StatusPicker status={e.status} onChange={(v) => handleStatusChange(e.id, v)} />
+                                    <StatusPicker status={e.status} options={["received", "expected"]} onChange={(v) => handleStatusChange(e.id, v)} />
                                   </td>
                                 </tr>
                               )}
@@ -343,15 +343,15 @@ export default function Expenses() {
         {/* Footer */}
         <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 grid grid-cols-4 gap-4 items-baseline bg-slate-50 dark:bg-zinc-900/50 font-mono">
           <div>
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t("expenses.finalBalance")}</div>
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t("income.finalBalance")}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.paid")}</div>
-            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmt(paidTotal, locale, currency)}</div>
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("income.received")}</div>
+            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{fmt(receivedTotal, locale, currency)}</div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("expenses.pending")}</div>
-            <div className="text-base font-bold text-rose-600 dark:text-rose-400">{fmt(pending, locale, currency)}</div>
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("income.pending")}</div>
+            <div className="text-base font-bold text-amber-600 dark:text-amber-400">{fmt(pending, locale, currency)}</div>
           </div>
           <div className="text-right">
             <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5">{t("summary.total")}</div>
@@ -362,7 +362,7 @@ export default function Expenses() {
 
       {/* New section modal */}
       <Modal open={newCategory !== null} onClose={() => setNewCategory(null)}
-        title={t("expenses.newCategory")}
+        title={t("income.newCategory")}
         actions={<>
           <Btn onClick={() => setNewCategory(null)}>{t("btn.cancel")}</Btn>
           <Btn variant="primary" size="md" onClick={handleCreateCategory}>{t("btn.save")}</Btn>
@@ -381,13 +381,13 @@ export default function Expenses() {
         </div>
       </Modal>
 
-      {/* Delete expense modal */}
-      <Modal open={!!pendingDeleteExpense} onClose={() => setPendingDeleteExpense(null)}
-        title={t("expense.deleteTitle")}
-        description={t("expense.deleteDesc").replace("{name}", pendingDeleteExpense?.name ?? "")}
+      {/* Delete income modal */}
+      <Modal open={!!pendingDeleteIncome} onClose={() => setPendingDeleteIncome(null)}
+        title={t("income.deleteTitle")}
+        description={t("income.deleteDesc").replace("{name}", pendingDeleteIncome?.name ?? "")}
         actions={<>
-          <Btn onClick={() => setPendingDeleteExpense(null)}>{t("btn.cancel")}</Btn>
-          <Btn variant="danger" size="md" onClick={handleDeleteExpense}>{t("btn.delete")}</Btn>
+          <Btn onClick={() => setPendingDeleteIncome(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="danger" size="md" onClick={handleDeleteIncome}>{t("btn.delete")}</Btn>
         </>}
       />
 
@@ -424,23 +424,23 @@ export default function Expenses() {
         )}
       </Modal>
 
-      {/* New expense modal */}
-      <Modal open={!!newExpense} onClose={() => setNewExpense(null)}
-        title="New expense"
+      {/* New income modal */}
+      <Modal open={!!newIncome} onClose={() => setNewIncome(null)}
+        title={t("income.newItem")}
         actions={<>
-          <Btn onClick={() => setNewExpense(null)}>{t("btn.cancel")}</Btn>
-          <Btn variant="primary" size="md" onClick={handleCreateExpense}>{t("btn.save")}</Btn>
+          <Btn onClick={() => setNewIncome(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={handleCreateIncome}>{t("btn.save")}</Btn>
         </>}
       >
-        {newExpense && (
+        {newIncome && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.income")}</label>
               <input
                 type="text"
-                value={newExpense.name}
-                onChange={(e) => setNewExpense((p) => ({ ...p, name: e.target.value }))}
-                onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
+                value={newIncome.name}
+                onChange={(e) => setNewIncome((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateIncome()}
                 autoFocus
                 className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
               />
@@ -450,17 +450,17 @@ export default function Expenses() {
               {newAmountFocused ? (
                 <input
                   type="number"
-                  value={newExpense.amount || ""}
+                  value={newIncome.amount || ""}
                   autoFocus
-                  onChange={(e) => setNewExpense((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setNewIncome((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
                   onBlur={() => setNewAmountFocused(false)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateIncome()}
                   className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
                 />
               ) : (
                 <input
                   readOnly
-                  value={newExpense.amount === 0 ? "" : fmt(newExpense.amount, locale, currency)}
+                  value={newIncome.amount === 0 ? "" : fmt(newIncome.amount, locale, currency)}
                   onFocus={() => setNewAmountFocused(true)}
                   placeholder="0"
                   className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
@@ -471,9 +471,9 @@ export default function Expenses() {
         )}
       </Modal>
 
-      {/* Edit expense modal */}
+      {/* Edit income modal */}
       <Modal open={!!editing} onClose={() => setEditing(null)}
-        title={t("expenses.editTitle")}
+        title={t("income.editTitle")}
         actions={<>
           <Btn onClick={() => setEditing(null)}>{t("btn.cancel")}</Btn>
           <Btn variant="primary" size="md" onClick={saveEditing}>{t("btn.save")}</Btn>
@@ -482,7 +482,7 @@ export default function Expenses() {
         {editing && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.income")}</label>
               <input
                 type="text"
                 value={editing.name}
