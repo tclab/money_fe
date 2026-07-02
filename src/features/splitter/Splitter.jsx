@@ -10,17 +10,9 @@ import {
 import Modal from "../../components/Modal.jsx";
 import ReportMenu from "../../components/ReportMenu.jsx";
 import Btn from "../../components/Btn.jsx";
+import PageHeader from "../../components/PageHeader.jsx";
 
 const SPLITTER_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#f43f5e", "#06b6d4"];
-
-function StatBadge({ label, value, color, big, locale, currency }) {
-  return (
-    <div className="text-right">
-      <div className="text-[9px] font-mono font-semibold tracking-widest uppercase text-slate-400 dark:text-zinc-600">{label}</div>
-      <div className="font-mono font-semibold mt-0.5" style={{ fontSize: big ? 20 : 13, color }}>{fmt(value, locale, currency)}</div>
-    </div>
-  );
-}
 
 function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit, onAdd, locale, currency, t, people }) {
   const getPersonBadge = (row) => {
@@ -65,7 +57,8 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit,
 export default function Splitter() {
   const { t, locale, currency, lang, theme } = useI18n();
   const today = new Date();
-  const monthKey = toMonthKey(today);
+  const [viewDate, setViewDate] = useState(today);
+  const monthKey = toMonthKey(viewDate);
 
   const [items, setItems] = useState([]);
   const [people, setPeople] = useState([]);
@@ -102,7 +95,7 @@ export default function Splitter() {
       }
       setLoading(false);
     })();
-  }, []);
+  }, [monthKey]);
 
   const entradas = items.filter((i) => i.type === "income");
   const salidas = items.filter((i) => i.type === "expense");
@@ -298,25 +291,20 @@ export default function Splitter() {
   );
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
-        <div className="flex items-end gap-3">
-          <div>
-            <div className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
-            <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("nav.splitter")}</div>
-          </div>
-          <ReportMenu status={captureStatus} onSelect={handleCapture} />
-        </div>
-        <div className="flex gap-5 items-center">
-          <StatBadge label={t("splitter.neto")} value={neto} color={neto >= 0 ? "#34d399" : "#f87171"} locale={locale} currency={currency} />
-          <StatBadge label={t("splitter.discounts")} value={totalDesc} color="#fbbf24" locale={locale} currency={currency} />
-          <StatBadge label={t("splitter.pool")} value={pool} color="#60a5fa" locale={locale} currency={currency} big />
-        </div>
-      </div>
+    <div className="animate-fade-in space-y-2" style={{ fontVariantNumeric: "tabular-nums" }}>
+      <PageHeader
+        viewDate={viewDate} onSelectMonth={setViewDate}
+        title={t("nav.splitter")}
+        metrics={[
+          { label: t("splitter.neto"), value: fmt(neto, locale, currency), tone: neto >= 0 ? "positive" : "negative" },
+          { label: t("splitter.discounts"), value: fmt(totalDesc, locale, currency), tone: "pending" },
+          { label: t("splitter.pool"), value: fmt(pool, locale, currency), tone: "positive" },
+        ]}
+        action={<ReportMenu status={captureStatus} onSelect={handleCapture} />}
+      />
 
       {/* Content */}
-      <div className="p-4 flex flex-col gap-4">
+      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-4 flex flex-col gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <SplitterColumn
             title={t("splitter.entradas")} total={totalEntradas} color="#34d399"
@@ -702,7 +690,7 @@ export default function Splitter() {
             <div ref={captureRef} style={{ width: 500, padding: 24, background: bg, fontFamily: "ui-monospace, monospace" }}>
               {/* Header */}
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: textMuted, textTransform: "uppercase", letterSpacing: 2 }}>{fmtMonth(today, lang === "en" ? "en-US" : "es-ES")}</div>
+                <div style={{ fontSize: 10, color: textMuted, textTransform: "uppercase", letterSpacing: 2 }}>{fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}</div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 4 }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color: textPrimary }}>{t("nav.splitter")}</div>
                   <div style={{ display: "flex", gap: 20, alignItems: "flex-end" }}>

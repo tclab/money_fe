@@ -1,23 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useI18n } from "../i18n/index.jsx";
 import { cn } from "../lib/utils.js";
+import { AMOUNT_CLS } from "../lib/tokens.js";
 
+export { AMOUNT_CLS };
+
+// Solid = done, hollow = to-do. Per redesign spec section D: paid/received render a
+// solid emerald check; everything pending renders a hollow ring in its tone color.
 export const STATUS_ICON = {
-  paid:      { ch: "✓", cls: "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" },
-  unpaid:    { ch: "×", cls: "text-rose-400 bg-rose-500/10 border border-rose-500/30" },
-  scheduled: { ch: "◷", cls: "text-blue-400 bg-blue-500/10 border border-blue-500/30" },
-  verify:    { ch: "!", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/30" },
-  received:  { ch: "✓", cls: "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" },
-  expected:  { ch: "◷", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/30" },
-};
-
-export const AMOUNT_CLS = {
-  paid:      "text-emerald-600 dark:text-emerald-400",
-  unpaid:    "text-rose-600 dark:text-rose-400",
-  scheduled: "text-blue-600 dark:text-blue-400",
-  verify:    "text-amber-600 dark:text-amber-400",
-  received:  "text-emerald-600 dark:text-emerald-400",
-  expected:  "text-amber-600 dark:text-amber-400",
+  paid:      { ch: "✓", cls: "text-white bg-emerald-500 border border-emerald-500" },
+  received:  { ch: "✓", cls: "text-white bg-emerald-500 border border-emerald-500" },
+  unpaid:    { ch: "",  cls: "text-rose-400 border border-dashed border-rose-400" },
+  expected:  { ch: "",  cls: "text-amber-400 border border-dashed border-amber-400" },
+  verify:    { ch: "!", cls: "text-amber-400 bg-amber-500/10 border border-amber-500/40" },
+  scheduled: { ch: "◷", cls: "text-blue-400 bg-blue-500/10 border border-blue-500/40" },
 };
 
 // Statuses offered in the dropdown, scoped per feature so income and expenses
@@ -57,7 +53,7 @@ export default function StatusPicker({ status, onChange, options = EXPENSE_STATU
   return (
     <div className="flex items-center justify-center">
       <button ref={btnRef} onClick={handleOpen}
-        className={cn("inline-flex items-center justify-center w-5 h-5 rounded text-[10px] font-bold hover:opacity-75 transition-opacity", si.cls)}
+        className={cn("inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold hover:opacity-75 transition-opacity", si.cls)}
       >
         {si.ch}
       </button>

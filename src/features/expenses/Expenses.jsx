@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Plus, Trash2, ChevronDown, Cloud, GripVertical, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
-import { cn, toMonthKey, fmt, fmtMonth } from "../../lib/utils.js";
+import { cn, toMonthKey, fmt } from "../../lib/utils.js";
 import {
   fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense,
   reorderExpenses, reorderCategories, createCategory, createExpense, updateCategory,
@@ -10,13 +10,14 @@ import {
 } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
 import Btn from "../../components/Btn.jsx";
-import StatusPicker, { AMOUNT_CLS } from "../../components/StatusPicker.jsx";
-import MonthYearPicker from "../../components/MonthYearPicker.jsx";
-
-const SECTION_COLORS = ["#34d399", "#60a5fa", "#fbbf24", "#f87171", "#a78bfa"];
+import StatusPicker from "../../components/StatusPicker.jsx";
+import PageHeader from "../../components/PageHeader.jsx";
+import ProgressBar from "../../components/ProgressBar.jsx";
+import RowActions from "../../components/RowActions.jsx";
+import { SECTION_COLORS, TONE } from "../../lib/tokens.js";
 
 export default function Expenses() {
-  const { t, locale, currency, lang } = useI18n();
+  const { t, locale, currency } = useI18n();
   const today = new Date();
   const [categories, setCategories] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -32,9 +33,6 @@ export default function Expenses() {
   const [newAmountFocused, setNewAmountFocused] = useState(false);
   const [newExpense, setNewExpense] = useState(null); // null | { section_id, name, amount }
   const [viewDate, setViewDate] = useState(today);
-  const [pickerPos, setPickerPos] = useState(null);
-  const brandRef = useRef();
-  const pickerDropRef = useRef();
 
   const monthKey = toMonthKey(viewDate);
   const currentMonthKey = toMonthKey(today);
@@ -54,22 +52,6 @@ export default function Expenses() {
       setLoading(false);
     });
   }, [monthKey]);
-
-  useEffect(() => {
-    if (!pickerPos) return;
-    const handler = (e) => {
-      if (!brandRef.current?.contains(e.target) && !pickerDropRef.current?.contains(e.target)) setPickerPos(null);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [pickerPos]);
-
-  const openPicker = (e) => {
-    e.stopPropagation();
-    if (pickerPos) { setPickerPos(null); return; }
-    const r = brandRef.current.getBoundingClientRect();
-    setPickerPos({ top: r.bottom + 6, left: r.left });
-  };
 
   const grouped = categories.map((s) => ({
     ...s,
@@ -232,28 +214,23 @@ export default function Expenses() {
   );
 
   return (
-    <div className="animate-fade-in" style={{ fontVariantNumeric: "tabular-nums" }}>
+    <div className="animate-fade-in space-y-2" style={{ fontVariantNumeric: "tabular-nums" }}>
+      <PageHeader
+        viewDate={viewDate} onSelectMonth={setViewDate}
+        title={t("expenses.title")}
+        meta={`${all.length} ${t("expenses.transactions")} · ${categories.length} ${t("expenses.categories")}`}
+        metrics={[
+          { label: t("summary.paid"), value: fmt(paidTotal, locale, currency), tone: "positive" },
+          { label: t("expenses.pending"), value: fmt(pending, locale, currency), tone: "negative" },
+          { label: t("summary.total"), value: fmt(grandTotal, locale, currency), tone: "neutral" },
+        ]}
+        action={!isPastMonth && (
+          <Btn variant="primary" size="sm" onClick={() => setNewCategory("")}>
+            <Plus size={13} /> {t("expenses.newCategory")}
+          </Btn>
+        )}
+      />
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-end">
-          <div>
-            <button ref={brandRef} onClick={openPicker}
-              className="flex items-center gap-1 text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer select-none group">
-              {fmtMonth(viewDate, lang === "en" ? "en-US" : "es-ES")}
-              <ChevronDown size={10} className={cn("transition-transform", pickerPos && "rotate-180")} />
-            </button>
-            <div className="text-lg font-bold text-slate-900 dark:text-zinc-50 font-mono tracking-tight mt-1">{t("expenses.title")}</div>
-          </div>
-          <div className="text-right font-mono text-xs text-slate-400 dark:text-zinc-500 leading-relaxed">
-            <div>{t("summary.total")} · <span className="text-slate-900 dark:text-zinc-100 font-semibold">{fmt(grandTotal, locale, currency)}</span></div>
-            <div>
-              {t("summary.paid")} · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{fmt(paidTotal, locale, currency)}</span>
-              {" "}&nbsp;{t("expenses.pending")} · <span className="text-rose-600 dark:text-rose-400 font-semibold">{fmt(pending, locale, currency)}</span>
-            </div>
-            <div className="text-[10px] text-slate-300 dark:text-zinc-600 mt-0.5">{all.length} {t("expenses.transactions")} · {categories.length} {t("expenses.categories")}</div>
-          </div>
-        </div>
-
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full font-mono text-xs">
@@ -268,7 +245,15 @@ export default function Expenses() {
             <DragDropContext onDragEnd={handleDragEnd}>
               {grouped.map((sec, si) => {
                 const catTotal = sec.items.reduce((s, e) => s + e.amount, 0);
+                const catPaid = sec.items.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
                 const color = SECTION_COLORS[si % SECTION_COLORS.length];
+                const catActions = [
+                  { label: t("actions.add"), icon: Plus, onClick: () => setNewExpense({ category_id: sec.id, name: "", amount: 0 }) },
+                  { label: t("actions.rename"), icon: Pencil, onClick: () => setEditingCategory({ id: sec.id, name: sec.name }) },
+                  { label: t("actions.moveUp"), icon: ArrowUp, onClick: () => moveCategory(sec.id, -1), disabled: si === 0 },
+                  { label: t("actions.moveDown"), icon: ArrowDown, onClick: () => moveCategory(sec.id, 1), disabled: si === grouped.length - 1 },
+                  { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingDelete({ id: sec.id, name: sec.name }) },
+                ];
                 return (
                   <Fragment key={sec.id}>
                     <tbody>
@@ -285,57 +270,16 @@ export default function Expenses() {
                               <ChevronDown size={10} className={cn("transition-transform", collapsed.has(sec.id) && "-rotate-90")} />
                             </button>
                             {sec.name}
-                            {!isPastMonth && (
-                              <button
-                                onClick={() => setNewExpense({ category_id: sec.id, name: "", amount: 0 })}
-                                className="inline-flex items-center justify-center w-4 h-4 rounded text-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
-                                title="Add expense"
-                              >
-                                <Plus size={10} />
-                              </button>
-                            )}
-                            {!isPastMonth && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditingCategory({ id: sec.id, name: sec.name }); }}
-                                className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
-                                title={t("category.edit")}
-                              >
-                                <Pencil size={10} />
-                              </button>
-                            )}
-                            {!isPastMonth && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); moveCategory(sec.id, -1); }}
-                                disabled={si === 0}
-                                className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Move up"
-                              >
-                                <ArrowUp size={10} />
-                              </button>
-                            )}
-                            {!isPastMonth && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); moveCategory(sec.id, 1); }}
-                                disabled={si === grouped.length - 1}
-                                className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Move down"
-                              >
-                                <ArrowDown size={10} />
-                              </button>
-                            )}
-                            {!isPastMonth && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: sec.id, name: sec.name }); }}
-                                className="inline-flex items-center justify-center w-4 h-4 rounded text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
-                                title={t("category.delete")}
-                              >
-                                <Trash2 size={10} />
-                              </button>
-                            )}
+                            <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {sec.items.length} items</span>
+                            <span className="hidden sm:block w-20">
+                              <ProgressBar value={catPaid} max={catTotal} tone="positive" height="h-1" />
+                            </span>
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
-                        <td className="py-2.5 px-3 text-center text-slate-400 dark:text-zinc-600 text-[10px]">{sec.items.length} items</td>
+                        <td className="py-2.5 px-3 text-center">
+                          {!isPastMonth && <RowActions items={catActions} />}
+                        </td>
                       </tr>
                     </tbody>
                     {!collapsed.has(sec.id) && <Droppable droppableId={sec.id} isDropDisabled={isPastMonth}>
@@ -375,7 +319,7 @@ export default function Expenses() {
                                     </span>
                                   </td>
                                   <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                                  <td className={cn("py-1.5 px-3 text-right font-semibold", AMOUNT_CLS[e.status] || "text-slate-700 dark:text-zinc-300")}>
+                                  <td className={cn("py-1.5 px-3 text-right font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
                                     {fmt(e.amount, locale, currency)}
                                   </td>
                                   <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
@@ -415,21 +359,6 @@ export default function Expenses() {
           </div>
         </div>
       </div>
-
-      {/* Add section */}
-      {!isPastMonth && (
-        <button
-          onClick={() => setNewCategory("")}
-          className="mt-2 w-full border border-dashed border-slate-300 dark:border-zinc-700 rounded-lg text-slate-400 dark:text-zinc-600 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-400 dark:hover:border-emerald-600 text-xs font-mono py-2 transition flex items-center gap-1.5 justify-center"
-        >
-          <Plus size={11} /> {t("expenses.newCategory")}
-        </button>
-      )}
-
-      {pickerPos && (
-        <MonthYearPicker pos={pickerPos} dropRef={pickerDropRef} viewDate={viewDate}
-          onSelect={(d) => { setViewDate(d); setPickerPos(null); }} />
-      )}
 
       {/* New section modal */}
       <Modal open={newCategory !== null} onClose={() => setNewCategory(null)}
