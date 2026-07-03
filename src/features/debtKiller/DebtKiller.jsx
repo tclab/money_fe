@@ -414,7 +414,7 @@ export default function DebtKiller() {
         title={t("nav.debtKiller")}
         meta={`${t("flujo.loans")} · ${debts.length} ${t("debt.activeLoans")}`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ReportMenu status={reportStatus} disabled={debts.length === 0} onSelect={handleReport} />
             {debtTab !== "archived" && <Btn size="md" onClick={() => setShowBulkForm(v => !v)}>{t("debt.bulkPayment")}</Btn>}
             <Btn variant="primary" size="md" onClick={() => setShowForm(v => !v)}>
@@ -503,11 +503,11 @@ export default function DebtKiller() {
               ];
           return (
             <>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {kpis.map(k => (
-                  <div key={k.label} className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
+                  <div key={k.label} className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4 min-w-0">
                     <div className={cn(TYPE.label, "font-mono")}>{k.label}</div>
-                    <div className="text-lg font-bold font-mono mt-1.5" style={{ color: k.color }}>{k.value}</div>
+                    <div className="text-base sm:text-lg font-bold font-mono mt-1.5 truncate" style={{ color: k.color }}>{k.value}</div>
                     <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{k.sub}</div>
                   </div>
                 ))}

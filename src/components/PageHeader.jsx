@@ -61,11 +61,11 @@ export default function PageHeader({ viewDate, onSelectMonth, title, meta, metri
         {meta && <div className={cn(TYPE.body, "text-slate-400 dark:text-zinc-500 mt-0.5")}>{meta}</div>}
       </div>
 
-      <div className="flex items-center gap-5 font-mono">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 font-mono w-full sm:w-auto">
         {metrics.map((m, i) => (
           <div key={i} className="text-right">
             <div className={TYPE.label}>{m.label}</div>
-            <div className={cn(TYPE.metric, "mt-0.5", TONE[m.tone] || TONE.neutral)}>{m.value}</div>
+            <div className={cn("text-base sm:text-xl font-semibold mt-0.5", TONE[m.tone] || TONE.neutral)}>{m.value}</div>
           </div>
         ))}
         {action}
