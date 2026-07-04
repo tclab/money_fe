@@ -1,10 +1,10 @@
 import { useState, useEffect, Fragment } from "react";
-import { Plus, Trash2, Cloud } from "lucide-react";
+import { Plus, Trash2, Receipt, Pencil, Tags } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
-import { cn, toMonthKey, toDateKey, fmt } from "../../lib/utils.js";
+import { cn, toMonthKey, toDateKey, fmt, catColor } from "../../lib/utils.js";
 import {
   fetchCategories, fetchTransactions, createTransaction, updateTransaction,
-  createCategory,
+  createCategory, updateCategory, deleteCategory as deleteCategoryApi,
   deleteTransaction as deleteTransactionApi,
 } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
@@ -22,6 +22,10 @@ const parseDate = (s) => {
   return new Date(y, m - 1, d);
 };
 
+const Dot = ({ id }) => (
+  <span style={{ background: catColor(id) }} className="inline-block w-2 h-2 rounded-full shrink-0" />
+);
+
 export default function Transactions() {
   const { t, locale, currency, lang } = useI18n();
   const today = new Date();
@@ -33,8 +37,13 @@ export default function Transactions() {
   const [error, setError] = useState(null);
   const [viewDate, setViewDate] = useState(today);
   const [editing, setEditing] = useState(null); // null | full row draft
-  const [pendingDelete, setPendingDelete] = useState(null); // null | { id, note }
+  const [pendingDelete, setPendingDelete] = useState(null); // null | { id, note, amount, category_id }
   const [newCategory, setNewCategory] = useState(null); // null | string
+  const [manageOpen, setManageOpen] = useState(false); // category manager modal
+  const [editingCategory, setEditingCategory] = useState(null); // null | { id, name }
+  const [editCategoryErr, setEditCategoryErr] = useState(false);
+  const [pendingCatDelete, setPendingCatDelete] = useState(null); // null | { id, name }
+  const [defaultCatId, setDefaultCatId] = useState(""); // permanent "Others" fallback
   const emptyDraft = { date: todayKey, amount: 0, category_id: "", note: "", method: "" };
   const [draft, setDraft] = useState(emptyDraft);
 
@@ -45,7 +54,21 @@ export default function Transactions() {
     Promise.all([
       fetchCategories("transaction"),
       fetchTransactions(monthKey),
-    ]).then(([cats, txs]) => {
+    ]).then(async ([cats, txs]) => {
+      // Ensure a permanent "Others" category exists; use it as default.
+      // Prefer the current-locale name, then any others/otros already present.
+      const preferred = lang === "en" ? "others" : "otros";
+      let others = cats.find((c) => c.name.toLowerCase() === preferred)
+        || cats.find((c) => /^(others|otros)$/i.test(c.name));
+      if (!others) {
+        try {
+          others = await createCategory("transaction", lang === "en" ? "Others" : "Otros");
+          cats = [...cats, others];
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setDefaultCatId(others?.id ?? "");
       setCategories(cats);
       setTransactions(txs);
       setLoading(false);
@@ -66,6 +89,7 @@ export default function Transactions() {
     if (!g) { g = { date: tx.date, items: [] }; byDay.push(g); }
     g.items.push(tx);
   }
+  const dayCount = byDay.length || 1;
 
   const dayLabel = (d) =>
     new Intl.DateTimeFormat(lang === "en" ? "en-US" : "es-CO", {
@@ -73,11 +97,12 @@ export default function Transactions() {
     }).format(parseDate(d));
 
   const handleAdd = async () => {
-    if (!draft.category_id || !draft.amount) return;
+    const categoryId = draft.category_id || defaultCatId;
+    if (!categoryId || !draft.amount) return;
     const payload = {
       date: draft.date || todayKey,
       amount: draft.amount,
-      category_id: draft.category_id,
+      category_id: categoryId,
       note: draft.note.trim() || null,
       method: draft.method.trim() || null,
     };
@@ -94,11 +119,50 @@ export default function Transactions() {
   const handleCreateCategory = async () => {
     const name = (newCategory || "").trim();
     if (!name) return;
+    // Reuse an existing category instead of creating a case-insensitive duplicate.
+    const match = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (match) {
+      setDraft((p) => ({ ...p, category_id: match.id }));
+      setNewCategory(null);
+      return;
+    }
     setNewCategory(null);
     try {
       const cat = await createCategory("transaction", name);
-      setCategories((xs) => [...xs, cat]);
+      setCategories((xs) => xs.some((c) => c.id === cat.id) ? xs : [...xs, cat]);
       setDraft((p) => ({ ...p, category_id: cat.id }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveEditingCategory = async () => {
+    if (!editingCategory) return;
+    const name = editingCategory.name.trim();
+    if (!name) return;
+    // Block renaming onto another existing category (case-insensitive).
+    const dup = categories.some((c) => c.id !== editingCategory.id && c.name.toLowerCase() === name.toLowerCase());
+    if (dup) { setEditCategoryErr(true); return; }
+    const prev = categories.find((c) => c.id === editingCategory.id);
+    setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name } : c));
+    setEditingCategory(null);
+    setEditCategoryErr(false);
+    try {
+      await updateCategory("transaction", editingCategory.id, name);
+    } catch {
+      setCategories((xs) => xs.map((c) => c.id === prev.id ? prev : c));
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!pendingCatDelete) return;
+    const { id } = pendingCatDelete;
+    setPendingCatDelete(null);
+    setCategories((xs) => xs.filter((c) => c.id !== id));
+    setTransactions((xs) => xs.filter((e) => e.category_id !== id));
+    if (draft.category_id === id) setDraft((p) => ({ ...p, category_id: "" }));
+    try {
+      await deleteCategoryApi("transaction", id);
     } catch (e) {
       console.error(e);
     }
@@ -135,12 +199,6 @@ export default function Transactions() {
     }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
-      <Cloud size={28} className="animate-pulse mr-2" /> {t("state.loading")}
-    </div>
-  );
-
   if (error) return (
     <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm font-mono">
       {error}
@@ -154,10 +212,16 @@ export default function Transactions() {
       <PageHeader
         viewDate={viewDate} onSelectMonth={setViewDate}
         title={t("transactions.title")}
-        meta={`${transactions.length} ${t("transactions.count")}`}
+        meta={`${transactions.length} ${t("transactions.count")} · ${byDay.length} ${t("transactions.days")}`}
         metrics={[
           { label: t("transactions.total"), value: fmt(grandTotal, locale, currency), tone: "neutral" },
+          { label: t("transactions.perDay"), value: fmt(grandTotal / dayCount, locale, currency), tone: "neutral" },
         ]}
+        action={
+          <Btn variant="primary" size="md" onClick={() => setManageOpen(true)}>
+            <Tags size={15} /> {t("transactions.manageCategories")}
+          </Btn>
+        }
       />
 
       {/* Inline quick-add row */}
@@ -169,18 +233,23 @@ export default function Transactions() {
             onChange={(e) => setDraft((p) => ({ ...p, date: e.target.value }))}
             className={cn(INPUT, "w-auto")}
           />
-          <select
-            value={draft.category_id}
-            onChange={(e) => {
-              if (e.target.value === "__new__") { setNewCategory(""); return; }
-              setDraft((p) => ({ ...p, category_id: e.target.value }));
-            }}
-            className={cn(INPUT, "w-auto min-w-[9rem]")}
-          >
-            <option value="">{t("transactions.category")}</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            <option value="__new__">+ {t("transactions.newCategory")}</option>
-          </select>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+              <Dot id={draft.category_id || defaultCatId} />
+            </span>
+            <select
+              value={draft.category_id}
+              onChange={(e) => {
+                if (e.target.value === "__new__") { setNewCategory(""); return; }
+                setDraft((p) => ({ ...p, category_id: e.target.value }));
+              }}
+              className={cn(INPUT, "w-auto min-w-[9rem] pl-7")}
+            >
+              <option value="">{t("transactions.category")}</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="__new__">+ {t("transactions.newCategory")}</option>
+            </select>
+          </div>
           <AmountInput
             value={draft.amount}
             onChange={(v) => setDraft((p) => ({ ...p, amount: v }))}
@@ -203,69 +272,149 @@ export default function Transactions() {
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             className={cn(INPUT, "w-32")}
           />
-          <Btn variant="primary" size="md" onClick={handleAdd} disabled={!draft.category_id || !draft.amount}>
+          <Btn variant="primary" size="md" onClick={handleAdd} disabled={(!draft.category_id && !defaultCatId) || !draft.amount}>
             <Plus size={15} /> {t("transactions.add")}
           </Btn>
         </div>
-        {noCategories && (
+        {noCategories ? (
           <p className="mt-2 text-xs font-mono text-slate-400 dark:text-zinc-500">{t("transactions.noCategories")}</p>
+        ) : (
+          <p className="mt-2 px-1 text-[10px] font-mono uppercase tracking-[0.16em] text-slate-400 dark:text-zinc-600 hidden sm:block">{t("transactions.enterHint")}</p>
         )}
       </div>
 
       {/* Ledger grouped by day */}
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full font-mono text-xs">
-            <tbody>
-              {byDay.length === 0 && (
-                <tr><td className="py-10 text-center text-slate-400 dark:text-zinc-500">{t("transactions.empty")}</td></tr>
-              )}
-              {byDay.map((g) => {
-                const dayTotal = g.items.reduce((s, e) => s + (e.amount || 0), 0);
-                return (
-                  <Fragment key={g.date}>
-                    <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
-                      <td className="py-2 px-3 font-bold text-slate-700 dark:text-zinc-200 uppercase tracking-wider">{dayLabel(g.date)}</td>
-                      <td className="py-2 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(dayTotal, locale, currency)}</td>
-                      <td className="w-10" />
-                    </tr>
-                    {g.items.map((e, i) => (
-                      <tr
-                        key={e.id}
-                        onClick={() => setEditing({ ...e, note: e.note ?? "", method: e.method ?? "" })}
-                        className={cn(
-                          "border-b border-slate-100 dark:border-zinc-800/60 transition-colors cursor-pointer hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10",
-                          i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : ""
-                        )}>
-                        <td className="py-1.5 px-3">
-                          <span className="text-slate-700 dark:text-zinc-300">{catName(e.category_id)}</span>
-                          {(e.note || e.method) && (
-                            <span className="text-slate-400 dark:text-zinc-500">
-                              {e.note ? ` · ${e.note}` : ""}{e.method ? ` · ${e.method}` : ""}
-                            </span>
-                          )}
-                        </td>
-                        <td className={cn("py-1.5 px-3 text-right font-semibold", TONE.neutral)}>
-                          {fmt(e.amount, locale, currency)}
-                        </td>
-                        <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
-                          <RowActions items={[
-                            { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingDelete({ id: e.id, note: e.note || catName(e.category_id) }) },
-                          ]} />
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* Column header */}
+        <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/40 font-mono">
+          <span className={cn(TYPE.label, "flex-1")}>{t("transactions.category")}</span>
+          <span className={cn(TYPE.label, "text-right w-28 sm:w-36")}>{t("transactions.amount")}</span>
+          <span className="w-10" />
         </div>
-        <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 flex items-center justify-between bg-slate-50 dark:bg-zinc-900/50 font-mono">
-          <div className={TYPE.label}>{t("transactions.total")}</div>
-          <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 pr-12">{fmt(grandTotal, locale, currency)}</div>
+
+        {loading ? (
+          <LoadingRows />
+        ) : byDay.length === 0 ? (
+          <div className="flex flex-col items-center text-center gap-2 py-16 px-6">
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500">
+              <Receipt size={22} />
+            </div>
+            <div className="text-sm font-mono font-bold text-slate-700 dark:text-zinc-200 mt-1">{t("transactions.empty")}</div>
+            <div className="text-xs font-sans text-slate-400 dark:text-zinc-500 max-w-[260px]">{t("transactions.emptyHint")}</div>
+          </div>
+        ) : (
+          <div className="font-mono text-xs">
+            {byDay.map((g) => {
+              const dayTotal = g.items.reduce((s, e) => s + (e.amount || 0), 0);
+              return (
+                <Fragment key={g.date}>
+                  <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
+                    <span className="flex-1 font-bold text-slate-600 dark:text-zinc-300 uppercase tracking-wider">{dayLabel(g.date)}</span>
+                    <span className="text-right w-28 sm:w-36 font-semibold text-slate-400 dark:text-zinc-500">{fmt(dayTotal, locale, currency)}</span>
+                    <span className="w-10" />
+                  </div>
+                  {g.items.map((e, i) => (
+                    <div
+                      key={e.id}
+                      onClick={() => setEditing({ ...e, note: e.note ?? "", method: e.method ?? "" })}
+                      className={cn(
+                        "group flex items-center px-3 py-2 border-b border-slate-100 dark:border-zinc-800/60 transition-colors cursor-pointer hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10",
+                        i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : ""
+                      )}
+                    >
+                      <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <Dot id={e.category_id} />
+                        <span className="font-semibold text-slate-700 dark:text-zinc-200 shrink-0">{catName(e.category_id)}</span>
+                        {e.note && <span className="font-sans text-slate-400 dark:text-zinc-500 truncate">· {e.note}</span>}
+                        {e.method && (
+                          <span className="hidden sm:inline shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-zinc-500">
+                            {e.method}
+                          </span>
+                        )}
+                      </div>
+                      <span className={cn("text-right w-28 sm:w-36 font-semibold", TONE.neutral)}>
+                        {fmt(e.amount, locale, currency)}
+                      </span>
+                      <div className="w-10 flex justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity" onClick={(ev) => ev.stopPropagation()}>
+                        <RowActions items={[
+                          { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingDelete({ id: e.id, note: e.note, amount: e.amount, category_id: e.category_id }) },
+                        ]} />
+                      </div>
+                    </div>
+                  ))}
+                </Fragment>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Sticky grand total */}
+        <div className="sticky bottom-0 flex items-center px-3 sm:px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur font-mono">
+          <div className={cn(TYPE.label, "flex-1")}>{t("transactions.total")}</div>
+          <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 text-right w-28 sm:w-36">{fmt(grandTotal, locale, currency)}</div>
+          <div className="w-10" />
         </div>
       </div>
+
+      {/* Manage categories modal */}
+      <Modal open={manageOpen} onClose={() => setManageOpen(false)}
+        title={t("transactions.manageCategories")}
+        actions={<>
+          <Btn onClick={() => setManageOpen(false)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={() => { setManageOpen(false); setNewCategory(""); }}>
+            <Plus size={14} /> {t("transactions.newCategory")}
+          </Btn>
+        </>}
+      >
+        <div className="max-h-80 overflow-y-auto -mx-1 px-1">
+          {categories.length === 0 ? (
+            <p className="text-sm text-slate-400 dark:text-zinc-500 py-4 text-center">{t("transactions.noCategories")}</p>
+          ) : categories.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 py-2 border-b border-slate-100 dark:border-zinc-800/60 last:border-0">
+              <Dot id={c.id} />
+              <span className="flex-1 text-sm text-slate-700 dark:text-zinc-200 truncate">{c.name}</span>
+              <RowActions items={[
+                { label: t("actions.rename"), icon: Pencil, onClick: () => { setEditCategoryErr(false); setEditingCategory({ id: c.id, name: c.name }); } },
+                { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingCatDelete({ id: c.id, name: c.name }) },
+              ]} />
+            </div>
+          ))}
+        </div>
+      </Modal>
+
+      {/* Rename category modal */}
+      <Modal open={!!editingCategory} onClose={() => { setEditingCategory(null); setEditCategoryErr(false); }}
+        title={t("category.editTitle")}
+        actions={<>
+          <Btn onClick={() => { setEditingCategory(null); setEditCategoryErr(false); }}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={saveEditingCategory}>{t("btn.save")}</Btn>
+        </>}
+      >
+        {editingCategory && (
+          <>
+            <input
+              type="text" autoFocus
+              value={editingCategory.name}
+              onChange={(e) => { setEditingCategory((p) => ({ ...p, name: e.target.value })); setEditCategoryErr(false); }}
+              onKeyDown={(e) => e.key === "Enter" && saveEditingCategory()}
+              className={INPUT}
+            />
+            {editCategoryErr && (
+              <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{t("transactions.catRenameDup")}</p>
+            )}
+          </>
+        )}
+      </Modal>
+
+      {/* Delete category modal */}
+      <Modal open={!!pendingCatDelete} onClose={() => setPendingCatDelete(null)}
+        title={t("category.deleteTitle")}
+        description={t("transactions.catDeleteDesc").replace("{name}", pendingCatDelete?.name ?? "")}
+        actions={<>
+          <Btn onClick={() => setPendingCatDelete(null)}>{t("btn.cancel")}</Btn>
+          <Btn variant="danger" size="md" onClick={handleDeleteCategory}>{t("btn.delete")}</Btn>
+        </>}
+      />
 
       {/* New category modal */}
       <Modal open={newCategory !== null} onClose={() => setNewCategory(null)}
@@ -287,12 +436,23 @@ export default function Transactions() {
       {/* Delete modal */}
       <Modal open={!!pendingDelete} onClose={() => setPendingDelete(null)}
         title={t("transactions.deleteTitle")}
-        description={t("transactions.deleteDesc").replace("{name}", pendingDelete?.note ?? "")}
+        description={t("transactions.deleteDesc").replace("{name}", pendingDelete?.note || catName(pendingDelete?.category_id))}
         actions={<>
           <Btn onClick={() => setPendingDelete(null)}>{t("btn.cancel")}</Btn>
           <Btn variant="danger" size="md" onClick={handleDelete}>{t("btn.delete")}</Btn>
         </>}
-      />
+      >
+        {pendingDelete && (
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 px-3 py-2.5 font-mono">
+            <span className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200 min-w-0">
+              <Dot id={pendingDelete.category_id} />
+              {catName(pendingDelete.category_id)}
+              {pendingDelete.note && <span className="font-sans font-normal text-slate-400 dark:text-zinc-500 truncate">· {pendingDelete.note}</span>}
+            </span>
+            <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{fmt(pendingDelete.amount, locale, currency)}</span>
+          </div>
+        )}
+      </Modal>
 
       {/* Edit modal */}
       <Modal open={!!editing} onClose={() => setEditing(null)}
@@ -334,6 +494,27 @@ export default function Transactions() {
           </div>
         )}
       </Modal>
+    </div>
+  );
+}
+
+// Skeleton placeholder while transactions load.
+function LoadingRows() {
+  return (
+    <div className="animate-pulse">
+      {[0, 1, 2].map((g) => (
+        <Fragment key={g}>
+          <div className="px-3 py-2.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-100/70 dark:bg-zinc-800/40">
+            <div className="h-3 w-24 rounded bg-slate-200 dark:bg-zinc-700" />
+          </div>
+          {[0, 1].map((r) => (
+            <div key={r} className="flex items-center justify-between px-3 py-3 border-b border-slate-100 dark:border-zinc-800/60">
+              <div className="h-3 w-40 rounded bg-slate-200 dark:bg-zinc-800" />
+              <div className="h-3 w-16 rounded bg-slate-200 dark:bg-zinc-800" />
+            </div>
+          ))}
+        </Fragment>
+      ))}
     </div>
   );
 }

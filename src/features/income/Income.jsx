@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { Plus, Trash2, ChevronDown, Cloud, GripVertical, Pencil, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Cloud, GripVertical, Pencil, ArrowUp, ArrowDown, Tags } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, toMonthKey, fmt } from "../../lib/utils.js";
 import {
@@ -27,6 +27,8 @@ export default function Income() {
   const [editing, setEditing] = useState(null); // { id, section_id, name, amount }
   const [newCategory, setNewCategory] = useState(null); // null | string
   const [editingCategory, setEditingCategory] = useState(null); // null | { id, name }
+  const [editCategoryErr, setEditCategoryErr] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false); // category manager modal
   const [collapsed, setCollapsed] = useState(new Set());
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, name }
   const [pendingDeleteIncome, setPendingDeleteIncome] = useState(null); // null | { id, name }
@@ -113,9 +115,15 @@ export default function Income() {
     if (!editingCategory) return;
     const name = editingCategory.name.trim();
     if (!name) return;
+    // Block renaming onto another existing category (case-insensitive).
+    if (categories.some((c) => c.id !== editingCategory.id && c.name.toLowerCase() === name.toLowerCase())) {
+      setEditCategoryErr(true);
+      return;
+    }
     const prev = categories.find((c) => c.id === editingCategory.id);
     setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name } : c));
     setEditingCategory(null);
+    setEditCategoryErr(false);
     try {
       await updateCategory("income", editingCategory.id, name);
     } catch {
@@ -140,9 +148,11 @@ export default function Income() {
     const name = (newCategory || "").trim();
     if (!name) return;
     setNewCategory(null);
+    // Reuse an existing category instead of creating a case-insensitive duplicate.
+    if (categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) return;
     try {
       const sec = await createCategory("income", name);
-      setCategories((xs) => [...xs, sec]);
+      setCategories((xs) => xs.some((c) => c.id === sec.id) ? xs : [...xs, sec]);
     } catch (e) {
       console.error(e);
     }
@@ -221,11 +231,11 @@ export default function Income() {
           { label: t("income.pending"), value: fmt(pending, locale, currency), tone: "pending" },
           { label: t("summary.total"), value: fmt(grandTotal, locale, currency), tone: "neutral" },
         ]}
-        action={!isPastMonth && (
-          <Btn variant="primary" size="md" onClick={() => setNewCategory("")}>
-            <Plus size={15} /> {t("income.newCategory")}
+        action={
+          <Btn variant="primary" size="md" onClick={() => setManageOpen(true)}>
+            <Tags size={15} /> {t("category.manage")}
           </Btn>
-        )}
+        }
       />
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
         {/* Table */}
@@ -254,11 +264,11 @@ export default function Income() {
                 return (
                   <Fragment key={sec.id}>
                     <tbody>
-                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/40">
+                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
                         <td className="py-2.5 px-3">
                           <span style={{ background: color }} className="inline-block w-2 h-2 rounded-full" />
                         </td>
-                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-zinc-100 tracking-widest uppercase">
+                        <td className="py-2.5 px-3 font-bold text-slate-600 dark:text-zinc-300 tracking-widest uppercase">
                           <span className="flex items-center gap-2">
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleCollapsed(sec.id); }}
@@ -386,10 +396,10 @@ export default function Income() {
       />
 
       {/* Edit category modal */}
-      <Modal open={!!editingCategory} onClose={() => setEditingCategory(null)}
+      <Modal open={!!editingCategory} onClose={() => { setEditingCategory(null); setEditCategoryErr(false); }}
         title={t("category.editTitle")}
         actions={<>
-          <Btn onClick={() => setEditingCategory(null)}>{t("btn.cancel")}</Btn>
+          <Btn onClick={() => { setEditingCategory(null); setEditCategoryErr(false); }}>{t("btn.cancel")}</Btn>
           <Btn variant="primary" size="md" onClick={saveEditingCategory}>{t("btn.save")}</Btn>
         </>}
       >
@@ -399,13 +409,42 @@ export default function Income() {
             <input
               type="text"
               value={editingCategory.name}
-              onChange={(e) => setEditingCategory((p) => ({ ...p, name: e.target.value }))}
+              onChange={(e) => { setEditingCategory((p) => ({ ...p, name: e.target.value })); setEditCategoryErr(false); }}
               onKeyDown={(e) => e.key === "Enter" && saveEditingCategory()}
               autoFocus
               className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
             />
+            {editCategoryErr && (
+              <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{t("category.renameDup")}</p>
+            )}
           </div>
         )}
+      </Modal>
+
+      {/* Manage categories modal */}
+      <Modal open={manageOpen} onClose={() => setManageOpen(false)}
+        title={t("category.manage")}
+        actions={<>
+          <Btn onClick={() => setManageOpen(false)}>{t("btn.cancel")}</Btn>
+          <Btn variant="primary" size="md" onClick={() => { setManageOpen(false); setNewCategory(""); }}>
+            <Plus size={14} /> {t("income.newCategory")}
+          </Btn>
+        </>}
+      >
+        <div className="max-h-80 overflow-y-auto -mx-1 px-1">
+          {categories.length === 0 ? (
+            <p className="text-sm text-slate-400 dark:text-zinc-500 py-4 text-center">{t("income.newCategory")}</p>
+          ) : categories.map((c, ci) => (
+            <div key={c.id} className="flex items-center gap-2 py-2 border-b border-slate-100 dark:border-zinc-800/60 last:border-0">
+              <span style={{ background: SECTION_COLORS[ci % SECTION_COLORS.length] }} className="inline-block w-2 h-2 rounded-full shrink-0" />
+              <span className="flex-1 text-sm text-slate-700 dark:text-zinc-200 truncate">{c.name}</span>
+              <RowActions items={[
+                { label: t("actions.rename"), icon: Pencil, onClick: () => { setEditCategoryErr(false); setEditingCategory({ id: c.id, name: c.name }); } },
+                { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingDelete({ id: c.id, name: c.name }) },
+              ]} />
+            </div>
+          ))}
+        </div>
       </Modal>
 
       {/* New income modal */}
