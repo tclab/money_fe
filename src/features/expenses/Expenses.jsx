@@ -59,6 +59,11 @@ export default function Expenses() {
     items: expenses.filter((e) => e.category_id === s.id),
   }));
 
+  // Virtual bucket: items with null or orphaned (deleted-category) category_id.
+  const UNCATEGORIZED_ID = "__uncategorized__";
+  const liveIds = new Set(categories.map((c) => c.id));
+  const uncategorizedItems = expenses.filter((e) => !e.category_id || !liveIds.has(e.category_id));
+
   const all = expenses;
   const grandTotal = all.reduce((s, e) => s + e.amount, 0);
   const paidTotal = all.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
@@ -136,7 +141,7 @@ export default function Expenses() {
     const { id } = pendingDelete;
     setPendingDelete(null);
     setCategories((xs) => xs.filter((c) => c.id !== id));
-    setExpenses((xs) => xs.filter((e) => e.category_id !== id));
+    // Keep the items; they orphan into the Uncategorized bucket.
     try {
       await deleteCategoryApi("expense", id);
     } catch (e) {
@@ -165,7 +170,7 @@ export default function Expenses() {
     const draft = { ...newExpense, name };
     setNewExpense(null);
     try {
-      const exp = await createExpense(draft.category_id, draft.name, draft.amount);
+      const exp = await createExpense(draft.category_id || null, draft.name, draft.amount);
       setExpenses((xs) => [...xs, exp]);
     } catch (e) {
       console.error(e);
@@ -175,15 +180,16 @@ export default function Expenses() {
   const saveEditing = async () => {
     if (!editing) return;
     const prev = expenses.find((e) => e.id === editing.id);
-    setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount } : e));
+    const categoryId = editing.category_id || null;
+    setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount, category_id: categoryId } : e));
     setEditing(null);
     try {
       await Promise.all([
-        updateExpense(editing.id, { expense: editing.name }),
+        updateExpense(editing.id, { expense: editing.name, category_id: categoryId }),
         upsertExpenseStatus(editing.id, monthKey, { value: editing.amount }),
       ]);
     } catch {
-      setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount } : e));
+      setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount, category_id: prev.category_id } : e));
     }
   };
 
@@ -232,9 +238,16 @@ export default function Expenses() {
           { label: t("summary.total"), value: fmt(grandTotal, locale, currency), tone: "neutral" },
         ]}
         action={
-          <Btn variant="primary" size="md" onClick={() => setManageOpen(true)}>
-            <Tags size={15} /> {t("category.manage")}
-          </Btn>
+          <div className="flex items-center gap-2">
+            <Btn variant="default" size="md" onClick={() => setManageOpen(true)}>
+              <Tags size={15} /> {t("category.manage")}
+            </Btn>
+            {!isPastMonth && (
+              <Btn variant="primary" size="md" onClick={() => setNewExpense({ category_id: "", name: "", amount: 0 })}>
+                <Plus size={15} /> {t("expenses.newExpense")}
+              </Btn>
+            )}
+          </div>
         }
       />
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
@@ -298,14 +311,14 @@ export default function Expenses() {
                                 <tr
                                   ref={draggableProvided.innerRef}
                                   {...draggableProvided.draggableProps}
-                                  onClick={() => !isPastMonth && !snapshot.isDragging && setEditing({ id: e.id, section_id: e.section_id, name: e.name, amount: e.amount })}
+                                  onClick={() => !isPastMonth && !snapshot.isDragging && setEditing({ id: e.id, category_id: e.category_id ?? "", name: e.name, amount: e.amount })}
                                   className={cn(
-                                    "border-b border-slate-100 dark:border-zinc-800/60 transition-colors",
+                                    "group border-b border-slate-100 dark:border-zinc-800/60 transition-colors",
                                     i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : "",
                                     isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer",
                                     snapshot.isDragging ? "bg-emerald-50 dark:bg-emerald-950/20 shadow-md" : ""
                                   )}>
-                                  <td className="py-1.5 px-3 w-12" onClick={(ev) => ev.stopPropagation()}>
+                                  <td className="py-1.5 pl-3 pr-0 w-px" onClick={(ev) => ev.stopPropagation()}>
                                     <span className="flex items-center gap-1">
                                       {!isPastMonth && (
                                         <span
@@ -318,7 +331,7 @@ export default function Expenses() {
                                       {!isPastMonth && (
                                         <button
                                           onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
-                                          className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors"
+                                          className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                                         >
                                           <Trash2 size={10} />
                                         </button>
@@ -343,6 +356,71 @@ export default function Expenses() {
                   </Fragment>
                 );
               })}
+              {uncategorizedItems.length > 0 && (() => {
+                const catTotal = uncategorizedItems.reduce((s, e) => s + e.amount, 0);
+                const catPaid = uncategorizedItems.filter((e) => e.status === "paid").reduce((s, e) => s + e.amount, 0);
+                const isOpen = !collapsed.has(UNCATEGORIZED_ID);
+                return (
+                  <Fragment key={UNCATEGORIZED_ID}>
+                    <tbody>
+                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
+                        <td className="py-2.5 px-3">
+                          <span className="inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-600" />
+                        </td>
+                        <td className="py-2.5 px-3 font-bold text-slate-600 dark:text-zinc-300 tracking-widest uppercase">
+                          <span className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleCollapsed(UNCATEGORIZED_ID); }}
+                              className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors"
+                            >
+                              <ChevronDown size={10} className={cn("transition-transform", !isOpen && "-rotate-90")} />
+                            </button>
+                            {t("category.uncategorized")}
+                            <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {uncategorizedItems.length} items</span>
+                            <span className="hidden sm:block w-20">
+                              <ProgressBar value={catPaid} max={catTotal} tone="positive" height="h-1" />
+                            </span>
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
+                        <td className="py-2.5 px-3" />
+                      </tr>
+                    </tbody>
+                    {isOpen && (
+                      <tbody>
+                        {uncategorizedItems.map((e, i) => (
+                          <tr
+                            key={e.id}
+                            onClick={() => !isPastMonth && setEditing({ id: e.id, category_id: e.category_id ?? "", name: e.name, amount: e.amount })}
+                            className={cn(
+                              "group border-b border-slate-100 dark:border-zinc-800/60 transition-colors",
+                              i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : "",
+                              isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
+                            )}>
+                            <td className="py-1.5 pl-3 pr-0 w-px" onClick={(ev) => ev.stopPropagation()}>
+                              {!isPastMonth && (
+                                <button
+                                  onClick={() => setPendingDeleteExpense({ id: e.id, name: e.name })}
+                                  className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
+                            <td className={cn("py-1.5 px-3 text-right font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
+                              {fmt(e.amount, locale, currency)}
+                            </td>
+                            <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
+                              <StatusPicker status={e.status} onChange={(v) => handleStatusChange(e.id, v)} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    )}
+                  </Fragment>
+                );
+              })()}
             </DragDropContext>
           </table>
         </div>
@@ -449,7 +527,7 @@ export default function Expenses() {
 
       {/* New expense modal */}
       <Modal open={!!newExpense} onClose={() => setNewExpense(null)}
-        title="New expense"
+        title={t("expenses.newExpense")}
         actions={<>
           <Btn onClick={() => setNewExpense(null)}>{t("btn.cancel")}</Btn>
           <Btn variant="primary" size="md" onClick={handleCreateExpense}>{t("btn.save")}</Btn>
@@ -476,6 +554,17 @@ export default function Expenses() {
                 onEnter={handleCreateExpense}
                 format={(n) => fmt(n, locale, currency)}
               />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
+              <select
+                value={newExpense.category_id ?? ""}
+                onChange={(e) => setNewExpense((p) => ({ ...p, category_id: e.target.value }))}
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              >
+                <option value="">{t("category.uncategorized")}</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
           </div>
         )}
@@ -510,6 +599,17 @@ export default function Expenses() {
                 onEnter={saveEditing}
                 format={(n) => fmt(n, locale, currency)}
               />
+            </div>
+            <div>
+              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
+              <select
+                value={editing.category_id ?? ""}
+                onChange={(e) => setEditing((p) => ({ ...p, category_id: e.target.value }))}
+                className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition"
+              >
+                <option value="">{t("category.uncategorized")}</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
           </div>
         )}

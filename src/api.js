@@ -121,6 +121,7 @@ export async function updateExpense(id, patch) {
   if (patch.expense !== undefined) body.expense = patch.expense;
   if (patch.value !== undefined) body.value = patch.value;
   if (patch.status !== undefined) body.status = patch.status;
+  if (patch.category_id !== undefined) body.category_id = patch.category_id;
   const res = await authFetch(`/expenses/${id}`, { method: "PUT", body });
   if (!res.ok) throw new Error("Failed to update expense");
   return mapExpense(await res.json());
@@ -152,6 +153,7 @@ export async function updateIncome(id, patch) {
   if (patch.income !== undefined) body.income = patch.income;
   if (patch.value !== undefined) body.value = patch.value;
   if (patch.status !== undefined) body.status = patch.status;
+  if (patch.category_id !== undefined) body.category_id = patch.category_id;
   const res = await authFetch(`/income/${id}`, { method: "PUT", body });
   if (!res.ok) throw new Error("Failed to update income");
   return mapIncome(await res.json());

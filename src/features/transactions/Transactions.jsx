@@ -23,7 +23,9 @@ const parseDate = (s) => {
 };
 
 const Dot = ({ id }) => (
-  <span style={{ background: catColor(id) }} className="inline-block w-2 h-2 rounded-full shrink-0" />
+  id
+    ? <span style={{ background: catColor(id) }} className="inline-block w-2 h-2 rounded-full shrink-0" />
+    : <span className="inline-block w-2 h-2 rounded-full shrink-0 bg-slate-300 dark:bg-zinc-600" />
 );
 
 export default function Transactions() {
@@ -43,7 +45,6 @@ export default function Transactions() {
   const [editingCategory, setEditingCategory] = useState(null); // null | { id, name }
   const [editCategoryErr, setEditCategoryErr] = useState(false);
   const [pendingCatDelete, setPendingCatDelete] = useState(null); // null | { id, name }
-  const [defaultCatId, setDefaultCatId] = useState(""); // permanent "Others" fallback
   const emptyDraft = { date: todayKey, amount: 0, category_id: "", note: "", method: "" };
   const [draft, setDraft] = useState(emptyDraft);
 
@@ -54,21 +55,7 @@ export default function Transactions() {
     Promise.all([
       fetchCategories("transaction"),
       fetchTransactions(monthKey),
-    ]).then(async ([cats, txs]) => {
-      // Ensure a permanent "Others" category exists; use it as default.
-      // Prefer the current-locale name, then any others/otros already present.
-      const preferred = lang === "en" ? "others" : "otros";
-      let others = cats.find((c) => c.name.toLowerCase() === preferred)
-        || cats.find((c) => /^(others|otros)$/i.test(c.name));
-      if (!others) {
-        try {
-          others = await createCategory("transaction", lang === "en" ? "Others" : "Otros");
-          cats = [...cats, others];
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      setDefaultCatId(others?.id ?? "");
+    ]).then(([cats, txs]) => {
       setCategories(cats);
       setTransactions(txs);
       setLoading(false);
@@ -78,7 +65,7 @@ export default function Transactions() {
     });
   }, [monthKey]);
 
-  const catName = (id) => categories.find((c) => c.id === id)?.name ?? "—";
+  const catName = (id) => categories.find((c) => c.id === id)?.name ?? t("transactions.uncategorized");
 
   const grandTotal = transactions.reduce((s, e) => s + (e.amount || 0), 0);
 
@@ -97,12 +84,11 @@ export default function Transactions() {
     }).format(parseDate(d));
 
   const handleAdd = async () => {
-    const categoryId = draft.category_id || defaultCatId;
-    if (!categoryId || !draft.amount) return;
+    if (!draft.amount) return;
     const payload = {
       date: draft.date || todayKey,
       amount: draft.amount,
-      category_id: categoryId,
+      category_id: draft.category_id || null,
       note: draft.note.trim() || null,
       method: draft.method.trim() || null,
     };
@@ -174,7 +160,7 @@ export default function Transactions() {
     const patch = {
       date: editing.date,
       amount: editing.amount,
-      category_id: editing.category_id,
+      category_id: editing.category_id || null,
       note: editing.note?.trim() || null,
       method: editing.method?.trim() || null,
     };
@@ -235,7 +221,7 @@ export default function Transactions() {
           />
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
-              <Dot id={draft.category_id || defaultCatId} />
+              <Dot id={draft.category_id} />
             </span>
             <select
               value={draft.category_id}
@@ -245,7 +231,7 @@ export default function Transactions() {
               }}
               className={cn(INPUT, "w-auto min-w-[9rem] pl-7")}
             >
-              <option value="">{t("transactions.category")}</option>
+              <option value="">{t("transactions.uncategorized")}</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               <option value="__new__">+ {t("transactions.newCategory")}</option>
             </select>
@@ -272,7 +258,7 @@ export default function Transactions() {
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             className={cn(INPUT, "w-32")}
           />
-          <Btn variant="primary" size="md" onClick={handleAdd} disabled={(!draft.category_id && !defaultCatId) || !draft.amount}>
+          <Btn variant="primary" size="md" onClick={handleAdd} disabled={!draft.amount}>
             <Plus size={15} /> {t("transactions.add")}
           </Btn>
         </div>
@@ -289,7 +275,6 @@ export default function Transactions() {
         <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/40 font-mono">
           <span className={cn(TYPE.label, "flex-1")}>{t("transactions.category")}</span>
           <span className={cn(TYPE.label, "text-right w-28 sm:w-36")}>{t("transactions.amount")}</span>
-          <span className="w-10" />
         </div>
 
         {loading ? (
@@ -311,7 +296,6 @@ export default function Transactions() {
                   <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
                     <span className="flex-1 font-bold text-slate-600 dark:text-zinc-300 uppercase tracking-wider">{dayLabel(g.date)}</span>
                     <span className="text-right w-28 sm:w-36 font-semibold text-slate-400 dark:text-zinc-500">{fmt(dayTotal, locale, currency)}</span>
-                    <span className="w-10" />
                   </div>
                   {g.items.map((e, i) => (
                     <div
@@ -323,6 +307,12 @@ export default function Transactions() {
                       )}
                     >
                       <div className="flex-1 flex items-center gap-2 min-w-0">
+                        <button
+                          onClick={(ev) => { ev.stopPropagation(); setPendingDelete({ id: e.id, note: e.note, amount: e.amount, category_id: e.category_id }); }}
+                          className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        >
+                          <Trash2 size={12} />
+                        </button>
                         <Dot id={e.category_id} />
                         <span className="font-semibold text-slate-700 dark:text-zinc-200 shrink-0">{catName(e.category_id)}</span>
                         {e.note && <span className="font-sans text-slate-400 dark:text-zinc-500 truncate">· {e.note}</span>}
@@ -335,11 +325,6 @@ export default function Transactions() {
                       <span className={cn("text-right w-28 sm:w-36 font-semibold", TONE.neutral)}>
                         {fmt(e.amount, locale, currency)}
                       </span>
-                      <div className="w-10 flex justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity" onClick={(ev) => ev.stopPropagation()}>
-                        <RowActions items={[
-                          { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingDelete({ id: e.id, note: e.note, amount: e.amount, category_id: e.category_id }) },
-                        ]} />
-                      </div>
                     </div>
                   ))}
                 </Fragment>
@@ -352,7 +337,6 @@ export default function Transactions() {
         <div className="sticky bottom-0 flex items-center px-3 sm:px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur font-mono">
           <div className={cn(TYPE.label, "flex-1")}>{t("transactions.total")}</div>
           <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 text-right w-28 sm:w-36">{fmt(grandTotal, locale, currency)}</div>
-          <div className="w-10" />
         </div>
       </div>
 
@@ -470,7 +454,8 @@ export default function Transactions() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
-              <select value={editing.category_id} onChange={(e) => setEditing((p) => ({ ...p, category_id: e.target.value }))} className={INPUT}>
+              <select value={editing.category_id ?? ""} onChange={(e) => setEditing((p) => ({ ...p, category_id: e.target.value }))} className={INPUT}>
+                <option value="">{t("transactions.uncategorized")}</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
