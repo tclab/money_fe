@@ -3,7 +3,7 @@ import { Cloud, TrendingUp } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, toMonthKey, fmt } from "../../lib/utils.js";
 import { TYPE } from "../../lib/tokens.js";
-import { fetchIncome, fetchExpenses, fetchCategories } from "../../api.js";
+import { fetchIncome, fetchExpenses, fetchCategories, fetchTransactions } from "../../api.js";
 import PageHeader from "../../components/PageHeader.jsx";
 import ProgressBar from "../../components/ProgressBar.jsx";
 
@@ -26,8 +26,10 @@ export default function Dashboard() {
   const today = new Date();
   const [income, setIncome] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [incomeCats, setIncomeCats] = useState([]);
   const [expenseCats, setExpenseCats] = useState([]);
+  const [transactionCats, setTransactionCats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewDate, setViewDate] = useState(today);
@@ -39,13 +41,17 @@ export default function Dashboard() {
     Promise.all([
       fetchIncome(null, monthKey),
       fetchExpenses(null, monthKey),
+      fetchTransactions(monthKey),
       fetchCategories("income"),
       fetchCategories("expense"),
-    ]).then(([inc, exp, incCats, expCats]) => {
+      fetchCategories("transaction"),
+    ]).then(([inc, exp, txs, incCats, expCats, txCats]) => {
       setIncome(inc);
       setExpenses(exp);
+      setTransactions(txs);
       setIncomeCats(incCats);
       setExpenseCats(expCats);
+      setTransactionCats(txCats);
       setLoading(false);
     }).catch((e) => {
       setError(e.message);
@@ -54,7 +60,10 @@ export default function Dashboard() {
   }, [monthKey]);
 
   const incomeTotal = sum(income);
-  const expenseTotal = sum(expenses);
+  const recurringTotal = sum(expenses);
+  const transactionTotal = sum(transactions);
+  // Total outflow = recurring bills + variable daily spend.
+  const expenseTotal = recurringTotal + transactionTotal;
   const net = incomeTotal - expenseTotal;
   const savingsRate = incomeTotal > 0 ? net / incomeTotal : 0;
   const savingsPct = Math.max(0, Math.min(100, savingsRate * 100));
@@ -63,12 +72,13 @@ export default function Dashboard() {
   const expected = incomeTotal - received;
   const receivedPct = incomeTotal > 0 ? (received / incomeTotal) * 100 : 0;
 
-  const paid = sum(expenses.filter((e) => e.status === "paid"));
+  // Transactions are realized spend, so they count as already paid.
+  const paid = sum(expenses.filter((e) => e.status === "paid")) + transactionTotal;
   const pending = expenseTotal - paid;
   const paidPct = expenseTotal > 0 ? (paid / expenseTotal) * 100 : 0;
 
   const incomeBreakdown = breakdown(income, incomeCats);
-  const expenseBreakdown = breakdown(expenses, expenseCats);
+  const expenseBreakdown = breakdown([...expenses, ...transactions], [...expenseCats, ...transactionCats]);
 
   const positive = net >= 0;
 
@@ -158,7 +168,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-2 font-mono text-3xl font-bold tracking-tight text-slate-800 dark:text-zinc-100">{fmt(expenseTotal, locale, currency)}</div>
           <div className={cn("mt-1", TYPE.body, "text-slate-500 dark:text-zinc-400")}>
-            {expenses.length} {t("expenses.transactions")} · {expenseCats.length} {t("expenses.categories")}
+            {expenses.length + transactions.length} {t("expenses.transactions")} · {expenseCats.length} {t("expenses.categories")}
           </div>
         </div>
       </div>

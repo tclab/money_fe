@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Users, Target, LogOut, ChevronDown } from "lucide-react";
+import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Receipt, Users, Target, LogOut, ChevronDown } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
@@ -8,6 +8,7 @@ import Login from "./auth/Login.jsx";
 import Dashboard from "./features/dashboard/Dashboard.jsx";
 import Expenses from "./features/expenses/Expenses.jsx";
 import Income from "./features/income/Income.jsx";
+import Transactions from "./features/transactions/Transactions.jsx";
 import Splitter from "./features/splitter/Splitter.jsx";
 import DebtKiller from "./features/debtKiller/DebtKiller.jsx";
 
@@ -33,6 +34,7 @@ export default function App() {
     { id: "dashboard", label: t("nav.dashboard"), Icon: LayoutDashboard },
     { id: "expenses", label: t("nav.expenses"), Icon: BookOpen },
     { id: "income", label: t("nav.income"), Icon: TrendingUp },
+    { id: "transactions", label: t("nav.transactions"), Icon: Receipt },
     { id: "splitter", label: t("nav.splitter"), Icon: Users },
     { id: "debtKiller", label: t("nav.debtKiller"), Icon: Target },
   ];
@@ -147,7 +149,7 @@ export default function App() {
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
-            {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
+            {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "transactions" ? t("nav.transactions") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
           </span>
         </div>
         <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
@@ -200,6 +202,7 @@ export default function App() {
               {tab === "dashboard" && <Dashboard />}
               {tab === "expenses" && <Expenses />}
               {tab === "income" && <Income />}
+              {tab === "transactions" && <Transactions />}
               {tab === "splitter" && <Splitter />}
               {tab === "debtKiller" && <DebtKiller />}
             </motion.div>

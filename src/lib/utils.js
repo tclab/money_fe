@@ -7,6 +7,10 @@ export function cn(...inputs) {
 
 export const toMonthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
+// Local YYYY-MM-DD (avoids the UTC shift of toISOString).
+export const toDateKey = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 export const fmt = (n, locale = "es-CO", currency = "COP") =>
   new Intl.NumberFormat(locale, { style: "currency", currency, minimumFractionDigits: 0 }).format(n || 0);
 

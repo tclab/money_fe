@@ -176,6 +176,38 @@ export async function upsertIncomeStatus(incomeId, month, { status, value } = {}
   return res.json();
 }
 
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+
+export async function fetchTransactions(month, categoryId) {
+  const params = new URLSearchParams();
+  if (categoryId) params.set("category_id", categoryId);
+  if (month) params.set("month", month);
+  const res = await authFetch(`/transactions${params.size ? "?" + params : ""}`);
+  if (!res.ok) throw new Error("Failed to fetch transactions");
+  const data = await res.json();
+  return data.transactions ?? data;
+}
+
+export async function createTransaction({ date, amount, category_id, note, method }) {
+  const body = { date, amount, category_id };
+  if (note !== undefined) body.note = note;
+  if (method !== undefined) body.method = method;
+  const res = await authFetch("/transactions", { method: "POST", body });
+  if (!res.ok) throw new Error("Failed to create transaction");
+  return res.json();
+}
+
+export async function updateTransaction(id, patch) {
+  const res = await authFetch(`/transactions/${id}`, { method: "PUT", body: patch });
+  if (!res.ok) throw new Error("Failed to update transaction");
+  return res.json();
+}
+
+export async function deleteTransaction(id) {
+  const res = await authFetch(`/transactions/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete transaction");
+}
+
 // ─── SPLITTER ─────────────────────────────────────────────────────────────────
 
 export async function fetchSplitters(month) {
