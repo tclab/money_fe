@@ -14,6 +14,7 @@ import StatusPicker from "../../components/StatusPicker.jsx";
 import PageHeader from "../../components/PageHeader.jsx";
 import ProgressBar from "../../components/ProgressBar.jsx";
 import RowActions from "../../components/RowActions.jsx";
+import AmountInput from "../../components/AmountInput.jsx";
 import { SECTION_COLORS, TONE, TYPE } from "../../lib/tokens.js";
 
 export default function Expenses() {
@@ -29,8 +30,6 @@ export default function Expenses() {
   const [collapsed, setCollapsed] = useState(new Set());
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, name }
   const [pendingDeleteExpense, setPendingDeleteExpense] = useState(null); // null | { id, name }
-  const [editAmountFocused, setEditAmountFocused] = useState(false);
-  const [newAmountFocused, setNewAmountFocused] = useState(false);
   const [newExpense, setNewExpense] = useState(null); // null | { section_id, name, amount }
   const [viewDate, setViewDate] = useState(today);
 
@@ -73,8 +72,6 @@ export default function Expenses() {
     }
   };
 
-  useEffect(() => { setEditAmountFocused(false); }, [editing?.id]);
-  useEffect(() => { setNewAmountFocused(false); }, [newExpense?.category_id]);
 
   const handleDeleteExpense = async () => {
     if (!pendingDeleteExpense) return;
@@ -434,25 +431,12 @@ export default function Expenses() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
-              {newAmountFocused ? (
-                <input
-                  type="number"
-                  value={newExpense.amount || ""}
-                  autoFocus
-                  onChange={(e) => setNewExpense((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
-                  onBlur={() => setNewAmountFocused(false)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateExpense()}
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-                />
-              ) : (
-                <input
-                  readOnly
-                  value={newExpense.amount === 0 ? "" : fmt(newExpense.amount, locale, currency)}
-                  onFocus={() => setNewAmountFocused(true)}
-                  placeholder="0"
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
-                />
-              )}
+              <AmountInput
+                value={newExpense.amount}
+                onChange={(v) => setNewExpense((p) => ({ ...p, amount: v }))}
+                onEnter={handleCreateExpense}
+                format={(n) => fmt(n, locale, currency)}
+              />
             </div>
           </div>
         )}
@@ -481,25 +465,12 @@ export default function Expenses() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
-              {editAmountFocused ? (
-                <input
-                  type="number"
-                  value={editing.amount || ""}
-                  autoFocus
-                  onChange={(e) => setEditing((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
-                  onBlur={() => setEditAmountFocused(false)}
-                  onKeyDown={(e) => e.key === "Enter" && saveEditing()}
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-                />
-              ) : (
-                <input
-                  readOnly
-                  value={editing.amount === 0 ? "" : fmt(editing.amount, locale, currency)}
-                  onFocus={() => setEditAmountFocused(true)}
-                  placeholder="0"
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
-                />
-              )}
+              <AmountInput
+                value={editing.amount}
+                onChange={(v) => setEditing((p) => ({ ...p, amount: v }))}
+                onEnter={saveEditing}
+                format={(n) => fmt(n, locale, currency)}
+              />
             </div>
           </div>
         )}

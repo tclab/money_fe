@@ -11,6 +11,7 @@ import Modal from "../../components/Modal.jsx";
 import Btn from "../../components/Btn.jsx";
 import PageHeader from "../../components/PageHeader.jsx";
 import RowActions from "../../components/RowActions.jsx";
+import AmountInput from "../../components/AmountInput.jsx";
 import { TONE, TYPE } from "../../lib/tokens.js";
 
 const INPUT = "w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition";
@@ -32,12 +33,10 @@ export default function Transactions() {
   const [error, setError] = useState(null);
   const [viewDate, setViewDate] = useState(today);
   const [editing, setEditing] = useState(null); // null | full row draft
-  const [editAmountFocused, setEditAmountFocused] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, note }
   const [newCategory, setNewCategory] = useState(null); // null | string
   const emptyDraft = { date: todayKey, amount: 0, category_id: "", note: "", method: "" };
   const [draft, setDraft] = useState(emptyDraft);
-  const [draftAmountFocused, setDraftAmountFocused] = useState(false);
 
   const monthKey = toMonthKey(viewDate);
 
@@ -55,8 +54,6 @@ export default function Transactions() {
       setLoading(false);
     });
   }, [monthKey]);
-
-  useEffect(() => { setEditAmountFocused(false); }, [editing?.id]);
 
   const catName = (id) => categories.find((c) => c.id === id)?.name ?? "—";
 
@@ -89,7 +86,6 @@ export default function Transactions() {
       setTransactions((xs) => [created, ...xs].sort(sortRows));
       // Keep date + category for fast repeated entry; clear amount + note.
       setDraft((p) => ({ ...p, amount: 0, note: "" }));
-      setDraftAmountFocused(false);
     } catch (e) {
       console.error(e);
     }
@@ -185,23 +181,14 @@ export default function Transactions() {
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             <option value="__new__">+ {t("transactions.newCategory")}</option>
           </select>
-          {draftAmountFocused ? (
-            <input
-              type="number" autoFocus placeholder="0"
-              value={draft.amount || ""}
-              onChange={(e) => setDraft((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
-              onBlur={() => setDraftAmountFocused(false)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              className={cn(INPUT, "w-32 text-right font-mono")}
-            />
-          ) : (
-            <input
-              readOnly placeholder={t("transactions.amount")}
-              value={draft.amount === 0 ? "" : fmt(draft.amount, locale, currency)}
-              onFocus={() => setDraftAmountFocused(true)}
-              className={cn(INPUT, "w-32 text-right font-mono cursor-text")}
-            />
-          )}
+          <AmountInput
+            value={draft.amount}
+            onChange={(v) => setDraft((p) => ({ ...p, amount: v }))}
+            onEnter={handleAdd}
+            format={(n) => fmt(n, locale, currency)}
+            placeholder={t("transactions.amount")}
+            className="w-32"
+          />
           <input
             type="text" placeholder={t("transactions.note")}
             value={draft.note}
@@ -329,21 +316,12 @@ export default function Transactions() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.amount")}</label>
-              {editAmountFocused ? (
-                <input
-                  type="number" autoFocus value={editing.amount || ""}
-                  onChange={(e) => setEditing((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))}
-                  onBlur={() => setEditAmountFocused(false)}
-                  onKeyDown={(e) => e.key === "Enter" && saveEditing()}
-                  className={cn(INPUT, "text-right font-mono")}
-                />
-              ) : (
-                <input
-                  readOnly value={editing.amount === 0 ? "" : fmt(editing.amount, locale, currency)}
-                  onFocus={() => setEditAmountFocused(true)} placeholder="0"
-                  className={cn(INPUT, "text-right font-mono cursor-text")}
-                />
-              )}
+              <AmountInput
+                value={editing.amount}
+                onChange={(v) => setEditing((p) => ({ ...p, amount: v }))}
+                onEnter={saveEditing}
+                format={(n) => fmt(n, locale, currency)}
+              />
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.note")}</label>

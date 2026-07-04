@@ -12,6 +12,7 @@ import Modal from "../../components/Modal.jsx";
 import ReportMenu from "../../components/ReportMenu.jsx";
 import Btn from "../../components/Btn.jsx";
 import PageHeader from "../../components/PageHeader.jsx";
+import AmountInput from "../../components/AmountInput.jsx";
 
 const SPLITTER_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#f43f5e", "#06b6d4"];
 
@@ -86,7 +87,6 @@ export default function Splitter() {
 
   const [editModal, setEditModal] = useState(null);
   const [createModal, setCreateModal] = useState(null);
-  const [amountFocused, setAmountFocused] = useState(false);
 
   const [addPersonModal, setAddPersonModal] = useState(false);
   const [personCreateForm, setPersonCreateForm] = useState(null);
@@ -140,7 +140,6 @@ export default function Splitter() {
 
   const openCreate = (type) => {
     setCreateModal({ type, label: "", value: 0, person_id: type === "discount" && people.length > 0 ? people[0].id : null });
-    setAmountFocused(false);
   };
 
   const handleCreate = async () => {
@@ -159,7 +158,6 @@ export default function Splitter() {
   const openEdit = (type, rows, index) => {
     const row = rows[index];
     setEditModal({ type, id: row.id, label: row.label, value: row.value, person_id: row.person_id || null });
-    setAmountFocused(false);
   };
 
   const handleEdit = async () => {
@@ -447,25 +445,12 @@ export default function Splitter() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
-              {amountFocused ? (
-                <input
-                  type="number"
-                  value={createModal.value || ""}
-                  autoFocus
-                  onChange={(e) => setCreateModal((p) => ({ ...p, value: parseFloat(e.target.value) || 0 }))}
-                  onBlur={() => setAmountFocused(false)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-                />
-              ) : (
-                <input
-                  readOnly
-                  value={createModal.value === 0 ? "" : fmt(createModal.value, locale, currency)}
-                  onFocus={() => setAmountFocused(true)}
-                  placeholder="0"
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
-                />
-              )}
+              <AmountInput
+                value={createModal.value}
+                onChange={(v) => setCreateModal((p) => ({ ...p, value: v }))}
+                onEnter={handleCreate}
+                format={(n) => fmt(n, locale, currency)}
+              />
             </div>
             {createModal.type === "discount" && people.length > 0 && (
               <div>
@@ -509,25 +494,12 @@ export default function Splitter() {
             </div>
             <div>
               <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
-              {amountFocused ? (
-                <input
-                  type="number"
-                  value={editModal.value || ""}
-                  autoFocus
-                  onChange={(e) => setEditModal((p) => ({ ...p, value: parseFloat(e.target.value) || 0 }))}
-                  onBlur={() => setAmountFocused(false)}
-                  onKeyDown={(e) => e.key === "Enter" && handleEdit()}
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right"
-                />
-              ) : (
-                <input
-                  readOnly
-                  value={editModal.value === 0 ? "" : fmt(editModal.value, locale, currency)}
-                  onFocus={() => setAmountFocused(true)}
-                  placeholder="0"
-                  className="w-full border border-slate-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-mono bg-white dark:bg-zinc-800/60 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500/40 transition text-right cursor-text"
-                />
-              )}
+              <AmountInput
+                value={editModal.value}
+                onChange={(v) => setEditModal((p) => ({ ...p, value: v }))}
+                onEnter={handleEdit}
+                format={(n) => fmt(n, locale, currency)}
+              />
             </div>
             {editModal.type === "discount" && people.length > 0 && (
               <div>

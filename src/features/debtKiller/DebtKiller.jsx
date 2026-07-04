@@ -13,6 +13,7 @@ import PageHeader from "../../components/PageHeader.jsx";
 import ProgressBar from "../../components/ProgressBar.jsx";
 import RowActions from "../../components/RowActions.jsx";
 import Btn from "../../components/Btn.jsx";
+import AmountInput from "../../components/AmountInput.jsx";
 
 export default function DebtKiller() {
   const { t, locale, currency, theme } = useI18n();
@@ -29,19 +30,15 @@ export default function DebtKiller() {
   const [people, setPeople] = useState([]);
   const [addingPayment, setAddingPayment] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
-  const [formAmountFocused, setFormAmountFocused] = useState(false);
-  const [paymentAmountFocused, setPaymentAmountFocused] = useState(false);
   const [savingPayments, setSavingPayments] = useState(new Set());
   const [paymentError, setPaymentError] = useState("");
   const [debtTab, setDebtTab] = useState("owed_to_me");
   const [counts, setCounts] = useState({ owed_to_me: 0, i_owe: 0, archived: 0 });
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [bulkForm, setBulkForm] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), note: "", person_id: "" });
-  const [bulkAmountFocused, setBulkAmountFocused] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const [confirmDeleteDebt, setConfirmDeleteDebt] = useState(null);
   const [editingDebt, setEditingDebt] = useState(null);
-  const [editAmountFocused, setEditAmountFocused] = useState(false);
   const [openRow, setOpenRow] = useState(null);
 
   // Recompute the person-filter pills and tab counts from the full debt set.
@@ -567,16 +564,10 @@ export default function DebtKiller() {
               {formErrors.description && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{formErrors.description}</p>}
             </div>
             <div>
-              {formAmountFocused ? (
-                <input type="number" min="0" step="any" autoFocus value={form.amount || ""}
-                  onChange={e => { setForm(f => ({ ...f, amount: e.target.value })); setFormErrors(fe => ({ ...fe, amount: "" })); }}
-                  onBlur={() => setFormAmountFocused(false)}
-                  className={inputCls + " font-mono text-right" + (formErrors.amount ? " border-red-400 focus:ring-red-400" : "")} />
-              ) : (
-                <input readOnly value={form.amount === "" ? "" : fmt(parseFloat(form.amount) || 0, locale, currency)}
-                  onFocus={() => setFormAmountFocused(true)}
-                  placeholder="0" className={inputCls + " font-mono text-right cursor-text" + (formErrors.amount ? " border-red-400" : "")} />
-              )}
+              <AmountInput asString value={form.amount}
+                onChange={v => { setForm(f => ({ ...f, amount: v })); setFormErrors(fe => ({ ...fe, amount: "" })); }}
+                format={n => fmt(n, locale, currency)}
+                className={inputCls + " font-mono text-right" + (formErrors.amount ? " border-red-400 focus:ring-red-400" : "")} />
               {formErrors.amount && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{formErrors.amount}</p>}
             </div>
             <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} className={inputCls}>
@@ -616,16 +607,10 @@ export default function DebtKiller() {
           <form onSubmit={e => handleAddPayment(e, addingPayment)} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
             <div className={cn(TYPE.label, "font-mono")}>{t("debt.addPayment")}</div>
-            {paymentAmountFocused ? (
-              <input required type="number" min="0" step="any" autoFocus value={paymentForm.amount || ""}
-                onChange={e => { setPaymentForm(f => ({ ...f, amount: e.target.value })); setPaymentError(""); }}
-                onBlur={() => setPaymentAmountFocused(false)}
-                className={inputCls + " font-mono text-right" + (paymentError ? " border-red-400 focus:ring-red-400" : "")} />
-            ) : (
-              <input readOnly value={paymentForm.amount === "" ? "" : fmt(parseFloat(paymentForm.amount) || 0, locale, currency)}
-                onFocus={() => setPaymentAmountFocused(true)}
-                placeholder="0" className={inputCls + " font-mono text-right cursor-text" + (paymentError ? " border-red-400" : "")} />
-            )}
+            <AmountInput asString value={paymentForm.amount}
+              onChange={v => { setPaymentForm(f => ({ ...f, amount: v })); setPaymentError(""); }}
+              format={n => fmt(n, locale, currency)}
+              className={inputCls + " font-mono text-right" + (paymentError ? " border-red-400 focus:ring-red-400" : "")} />
             {paymentError && (
               <p className="text-xs text-red-500 dark:text-red-400 -mt-1">{paymentError}</p>
             )}
@@ -648,16 +633,10 @@ export default function DebtKiller() {
           <form onSubmit={handleBulkPayment} onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
             <div className={cn(TYPE.label, "font-mono")}>{t("debt.bulkPaymentTitle")}</div>
-            {bulkAmountFocused ? (
-              <input required type="number" min="0" step="any" autoFocus value={bulkForm.amount || ""}
-                onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, amount: e.target.value })); }}
-                onBlur={() => setBulkAmountFocused(false)}
-                className={inputCls + " font-mono text-right"} />
-            ) : (
-              <input readOnly value={bulkForm.amount === "" ? "" : fmt(parseFloat(bulkForm.amount) || 0, locale, currency)}
-                onFocus={() => setBulkAmountFocused(true)}
-                placeholder="0" className={inputCls + " font-mono text-right cursor-text"} />
-            )}
+            <AmountInput asString value={bulkForm.amount}
+              onChange={v => { setBulkError(""); setBulkForm(f => ({ ...f, amount: v })); }}
+              format={n => fmt(n, locale, currency)}
+              className={inputCls + " font-mono text-right"} />
             {bulkError && <p className="text-xs text-red-500">{bulkError}</p>}
             <input type="date" value={bulkForm.date}
               onChange={e => setBulkForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
@@ -709,18 +688,10 @@ export default function DebtKiller() {
               onChange={e => setEditingDebt(v => ({ ...v, description: e.target.value }))}
               className={inputCls}
             />
-            {editAmountFocused ? (
-              <input type="number" min="0" step="any" autoFocus
-                value={editingDebt.amount}
-                onChange={e => setEditingDebt(v => ({ ...v, amount: e.target.value }))}
-                onBlur={() => setEditAmountFocused(false)}
-                className={inputCls + " font-mono text-right"} />
-            ) : (
-              <button type="button" onClick={() => setEditAmountFocused(true)}
-                className={inputCls + " font-mono text-right"}>
-                {editingDebt.amount ? fmt(parseFloat(editingDebt.amount), locale, currency) : <span className="text-slate-400 text-left block">0</span>}
-              </button>
-            )}
+            <AmountInput asString value={editingDebt.amount}
+              onChange={v => setEditingDebt(d => ({ ...d, amount: v }))}
+              format={n => fmt(n, locale, currency)}
+              className={inputCls + " font-mono text-right"} />
             <select value={editingDebt.person_id}
               onChange={e => setEditingDebt(v => ({ ...v, person_id: e.target.value }))}
               className={inputCls}>
