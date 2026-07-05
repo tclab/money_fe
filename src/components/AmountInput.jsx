@@ -56,7 +56,6 @@ export default function AmountInput({
     <input
       type="text"
       inputMode="decimal"
-      pattern="[0-9]*"
       value={display}
       autoFocus={autoFocus}
       placeholder={placeholder}

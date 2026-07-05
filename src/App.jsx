@@ -1,21 +1,25 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Receipt, Users, Target, LogOut, ChevronDown } from "lucide-react";
+import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Receipt, Users, Target, LogOut, ChevronDown, UserRound } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
 import Login from "./auth/Login.jsx";
+import ResetPassword from "./auth/ResetPassword.jsx";
+import Landing from "./features/landing/Landing.jsx";
 import Dashboard from "./features/dashboard/Dashboard.jsx";
 import Expenses from "./features/expenses/Expenses.jsx";
 import Income from "./features/income/Income.jsx";
 import Transactions from "./features/transactions/Transactions.jsx";
 import Splitter from "./features/splitter/Splitter.jsx";
 import DebtKiller from "./features/debtKiller/DebtKiller.jsx";
+import Profile from "./features/profile/Profile.jsx";
 
 export default function App() {
   const { t, lang, setLang, theme, setTheme } = useI18n();
-  const { session, user, loading, signOut } = useAuth();
+  const { session, user, loading, recovery, signOut } = useAuth();
   const [tab, setTab] = useState("dashboard");
+  const [authView, setAuthView] = useState("landing"); // "landing" | "login"
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -117,6 +121,11 @@ export default function App() {
               <div className="font-mono text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
               {user?.email && <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
             </div>
+            <button onClick={() => { setUserMenuOpen(false); setTab("profile"); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+              <UserRound size={14} className="shrink-0" /> {t("nav.profile")}
+            </button>
+            <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
             <button onClick={() => { setUserMenuOpen(false); signOut(); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
               <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
@@ -135,7 +144,15 @@ export default function App() {
     );
   }
 
-  if (!session) return <Login />;
+  if (recovery) {
+    return <ResetPassword />;
+  }
+
+  if (!session) {
+    return authView === "login"
+      ? <Login onBack={() => setAuthView("landing")} />
+      : <Landing onGetStarted={() => setAuthView("login")} />;
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-zinc-950">
@@ -149,7 +166,7 @@ export default function App() {
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
           <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
-            {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "transactions" ? t("nav.transactions") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : t("nav.expenses")}
+            {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "transactions" ? t("nav.transactions") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : tab === "profile" ? t("nav.profile") : t("nav.expenses")}
           </span>
         </div>
         <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
@@ -205,6 +222,7 @@ export default function App() {
               {tab === "transactions" && <Transactions />}
               {tab === "splitter" && <Splitter />}
               {tab === "debtKiller" && <DebtKiller />}
+              {tab === "profile" && <Profile />}
             </motion.div>
           </AnimatePresence>
         </main>
