@@ -9,20 +9,22 @@ if (!url || !anonKey) {
   console.error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY env vars.");
 }
 
-// Remember-me: when off, the session lives in sessionStorage (cleared on tab close);
-// when on, localStorage (survives restart). setRememberSession flips this before login.
+// Remember-me: when off, the session is dropped on tab close by clearing the
+// persisted token then. No custom storage object — that deadlocked supabase-js's
+// session lock and hung getSession(). setRememberSession records the choice; the
+// cleanup happens via a pagehide listener below.
 let persist = true;
 export const setRememberSession = (v) => { persist = v; };
 
-const smartStorage = {
-  getItem: (k) => (persist ? localStorage : sessionStorage).getItem(k) ?? localStorage.getItem(k),
-  setItem: (k, val) => {
-    (persist ? localStorage : sessionStorage).setItem(k, val);
-    if (!persist) localStorage.removeItem(k);
-  },
-  removeItem: (k) => { localStorage.removeItem(k); sessionStorage.removeItem(k); },
-};
+export const supabase = createClient(url, anonKey);
 
-export const supabase = createClient(url, anonKey, {
-  auth: { persistSession: true, autoRefreshToken: true, storage: smartStorage },
-});
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    if (!persist) {
+      // Drop the persisted session so it does not survive the tab closing.
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith("sb-") && k.endsWith("-auth-token")) localStorage.removeItem(k);
+      }
+    }
+  });
+}

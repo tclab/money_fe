@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Cloud, Pencil, Loader2, Archive, ArchiveRestore } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Plus, Trash2, Cloud, Pencil, Loader2, Archive, ArchiveRestore, X } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { cn, fmt } from "../../lib/utils.js";
+import { allocate } from "../../lib/debtAllocate.js";
 import { TYPE } from "../../lib/tokens.js";
 import {
   fetchDebts, createDebt, deleteDebt, updateDebt, distributePayment,
@@ -155,6 +156,26 @@ export default function DebtKiller() {
     return { total, paid, remaining: Math.max(0, total - paid) };
   };
 
+  // Active debts for the distribute modal + the live split preview. Single source of
+  // truth: the submit handler reads from here too, so preview and result always match.
+  const bulkAmount = parseFloat(bulkForm.amount) || 0;
+  const bulkPreview = useMemo(() => {
+    const items = debtTab === "i_owe" ? iOwe : owedMe;
+    const active = items
+      .filter(d => !bulkForm.person_id || d.person_id === bulkForm.person_id)
+      .map(d => {
+        const paid = (d.debt_payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
+        return { debt: d, paid, remaining: Math.max(0, (d.amount ?? 0) - paid) };
+      })
+      .filter(x => x.remaining > 0);
+    const totalRemaining = active.reduce((s, x) => s + x.remaining, 0);
+    const allocs = allocate(active.map(x => x.remaining), bulkAmount);
+    const applied = allocs.reduce((s, a) => s + a, 0);
+    const leftover = Math.max(0, bulkAmount - totalRemaining);
+    const count = allocs.filter(a => a > 0.005).length;
+    return { active, totalRemaining, allocs, applied, leftover, count };
+  }, [debtTab, iOwe, owedMe, bulkForm.person_id, bulkAmount]);
+
   const fmtPayDate = (iso) => {
     if (!iso) return "";
     const [, m, d] = iso.split("-");
@@ -257,28 +278,19 @@ export default function DebtKiller() {
   async function handleBulkPayment(e) {
     e.preventDefault();
     if (!bulkForm.amount) return;
-    const items = debtTab === "i_owe" ? iOwe : owedMe;
-    const active = items.filter(d => {
-      if (bulkForm.person_id && d.person_id !== bulkForm.person_id) return false;
-      const paid = (d.debt_payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
-      return Math.max(0, (d.amount ?? 0) - paid) > 0;
-    });
+    const { active, totalRemaining } = bulkPreview;
     if (active.length === 0) {
       setBulkError(t("debt.noActive"));
       return;
     }
-    const totalRemaining = active.reduce((s, d) => {
-      const paid = (d.debt_payments ?? []).reduce((ps, p) => ps + (p.amount ?? 0), 0);
-      return s + Math.max(0, (d.amount ?? 0) - paid);
-    }, 0);
     const parsedAmount = parseFloat(bulkForm.amount);
     if (parsedAmount > totalRemaining) {
       setBulkError(t("debt.paymentExceedsRemaining").replace("{remaining}", fmt(totalRemaining, locale, currency)));
       return;
     }
-    const { amount, date, note, person_id } = bulkForm;
+    const { date, note, person_id } = bulkForm;
     closeBulkForm();
-    setSavingPayments(new Set(active.map(d => d.id)));
+    setSavingPayments(new Set(active.map(x => x.debt.id)));
     await distributePayment({ type: debtTab, amount: parsedAmount, date, note: note || undefined, person_id: person_id || undefined });
     await refreshDebts(debtPersonFilter);
     setSavingPayments(new Set());
@@ -554,7 +566,7 @@ export default function DebtKiller() {
       {/* Modal: New Debt */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setShowForm(false); setFormErrors({}); }}>
-          <form onSubmit={handleCreate} onClick={e => e.stopPropagation()}
+          <form onSubmit={handleCreate} noValidate onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
             <div className={cn(TYPE.label, "font-mono")}>{t("debt.newDebt")}</div>
             <div>
@@ -604,7 +616,7 @@ export default function DebtKiller() {
       {/* Modal: Add Payment */}
       {addingPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAddingPayment(null)}>
-          <form onSubmit={e => handleAddPayment(e, addingPayment)} onClick={e => e.stopPropagation()}
+          <form onSubmit={e => handleAddPayment(e, addingPayment)} noValidate onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
             <div className={cn(TYPE.label, "font-mono")}>{t("debt.addPayment")}</div>
             <AmountInput asString value={paymentForm.amount}
@@ -627,31 +639,150 @@ export default function DebtKiller() {
         </div>
       )}
 
-      {/* Modal: Bulk Payment */}
+      {/* Modal: Bulk Payment / Distribute */}
       {showBulkForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeBulkForm}>
-          <form onSubmit={handleBulkPayment} onClick={e => e.stopPropagation()}
-            className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className={cn(TYPE.label, "font-mono")}>{t("debt.bulkPaymentTitle")}</div>
-            <AmountInput asString value={bulkForm.amount}
-              onChange={v => { setBulkError(""); setBulkForm(f => ({ ...f, amount: v })); }}
-              format={n => fmt(n, locale, currency)}
-              className={inputCls + " font-mono text-right"} />
-            {bulkError && <p className="text-xs text-red-500">{bulkError}</p>}
-            <input type="date" value={bulkForm.date}
-              onChange={e => setBulkForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
-            {people.length > 0 && (
-              <select value={bulkForm.person_id} onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, person_id: e.target.value })); }} className={inputCls}>
-                <option value="">{t("debt.personOptional")}</option>
-                {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            )}
-            <input placeholder={t("debt.noteOptional")} value={bulkForm.note}
-              onChange={e => setBulkForm(f => ({ ...f, note: e.target.value }))} className={inputCls} />
-            <div className="flex gap-2">
-              <button type="submit" className="flex-1 py-2 text-sm font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">{t("btn.save")}</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={closeBulkForm}>
+          <form onSubmit={handleBulkPayment} noValidate onClick={e => e.stopPropagation()}
+            className="w-full max-w-lg max-h-[90vh] flex flex-col bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-slate-200 dark:border-zinc-800">
+              <div>
+                <div className="text-base font-semibold text-slate-900 dark:text-zinc-50">{t("debt.distributeTitle")}</div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 leading-relaxed">
+                  {t("debt.distributeSubtitle")
+                    .replace("{count}", String(bulkPreview.active.length))
+                    .split("{type}").map((part, i) => i === 0
+                      ? part
+                      : <span key={i}><span className="font-semibold text-emerald-600 dark:text-emerald-400">{t(debtTab === "i_owe" ? "debt.iOwe" : "debt.owedToMe")}</span>{part}</span>)}
+                </p>
+              </div>
               <button type="button" onClick={closeBulkForm}
-                className="flex-1 py-2 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+                className="shrink-0 grid place-items-center w-7 h-7 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-4 overflow-y-auto flex flex-col gap-4">
+              {/* Amount */}
+              <div>
+                <label className={cn(TYPE.label, "font-mono block mb-2")}>{t("debt.totalToDistribute")}</label>
+                <div className={cn("flex items-center rounded-xl border px-3 py-3",
+                  bulkAmount > 0 ? "border-emerald-500/60" : "border-slate-200 dark:border-zinc-700")}>
+                  <span className={cn("font-mono text-xl", bulkAmount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-300 dark:text-zinc-600")}>$</span>
+                  <div className="flex-1">
+                    <AmountInput asString value={bulkForm.amount}
+                      onChange={v => { setBulkError(""); setBulkForm(f => ({ ...f, amount: v })); }}
+                      className="w-full bg-transparent border-none outline-none focus:ring-0 rounded-none font-mono text-xl text-left text-slate-900 dark:text-zinc-50 px-2" />
+                  </div>
+                  <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-600">{currency}</span>
+                </div>
+                {bulkError && <p className="text-xs text-red-500 mt-1.5">{bulkError}</p>}
+              </div>
+
+              {/* Live split preview */}
+              {bulkPreview.active.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={cn(TYPE.label, "font-mono")}>{t("debt.splitPreview")}</span>
+                    <span className="text-[11px] font-mono text-slate-400 dark:text-zinc-500">
+                      {t("debt.applied").replace("{amount}", fmt(bulkPreview.applied, locale, currency))}
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 dark:border-zinc-700 divide-y divide-slate-100 dark:divide-zinc-800 overflow-hidden">
+                    {bulkPreview.active.map((x, i) => {
+                      const give = bulkPreview.allocs[i] || 0;
+                      const amount = x.debt.amount ?? 0;
+                      const basePct = amount > 0 ? Math.min(100, (x.paid / amount) * 100) : 0;
+                      const newPct = amount > 0 ? Math.min(100, ((x.paid + give) / amount) * 100) : 0;
+                      const cleared = give > 0 && x.paid + give >= amount - 0.005;
+                      const after = Math.max(0, x.remaining - give);
+                      return (
+                        <div key={x.debt.id} className={cn("px-4 py-3", give <= 0.005 && "opacity-50")}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm text-slate-800 dark:text-zinc-100 truncate">{x.debt.description}</span>
+                              {cleared && (
+                                <span className="text-[9px] font-mono font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                  {t("debt.cleared")}
+                                </span>
+                              )}
+                            </div>
+                            <span className={cn("font-mono text-sm shrink-0", give > 0.005 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-zinc-600")}>
+                              {give > 0.005 ? "+ " : ""}{fmt(give, locale, currency)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2.5 mt-2">
+                            <div className="relative flex-1 h-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
+                              <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/40" style={{ width: `${basePct}%` }} />
+                              <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-500 transition-all" style={{ width: `${newPct}%` }} />
+                            </div>
+                            <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 shrink-0 tabular-nums">
+                              {t("debt.leftAfter").replace("{amount}", fmt(after, locale, currency))}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Leftover warning */}
+              {bulkPreview.leftover > 0.5 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg px-3 py-2.5">
+                  {t("debt.leftoverWarning").replace("{amount}", fmt(bulkPreview.leftover, locale, currency))}
+                </p>
+              )}
+
+              {/* Date + Person */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={cn(TYPE.label, "font-mono block mb-2")}>{t("debt.date")}</label>
+                  <input type="date" value={bulkForm.date}
+                    onChange={e => setBulkForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+                </div>
+                {people.length > 0 && (
+                  <div>
+                    <label className={cn(TYPE.label, "font-mono block mb-2")}>
+                      {t("debt.person")} <span className="normal-case tracking-normal text-slate-400 dark:text-zinc-600">· {t("debt.optional")}</span>
+                    </label>
+                    <select value={bulkForm.person_id} onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, person_id: e.target.value })); }} className={inputCls}>
+                      <option value="">{t("debt.allPeople")}</option>
+                      {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className={cn(TYPE.label, "font-mono block mb-2")}>
+                  {t("debt.note")} <span className="normal-case tracking-normal text-slate-400 dark:text-zinc-600">· {t("debt.optional")}</span>
+                </label>
+                <input placeholder={t("debt.notePlaceholder")} value={bulkForm.note}
+                  onChange={e => setBulkForm(f => ({ ...f, note: e.target.value }))} className={inputCls} />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center gap-3 px-6 py-4 border-t border-slate-200 dark:border-zinc-800">
+              <p className="flex-1 text-xs text-slate-500 dark:text-zinc-400">
+                {bulkAmount > 0
+                  ? t("debt.applyingSummary")
+                      .replace("{amount}", fmt(bulkPreview.applied, locale, currency))
+                      .replace("{count}", String(bulkPreview.count))
+                  : t("debt.enterAmount")}
+              </p>
+              <button type="button" onClick={closeBulkForm}
+                className="px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">{t("btn.cancel")}</button>
+              <button type="submit" disabled={bulkAmount <= 0}
+                className="px-5 py-2.5 text-sm font-bold rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {bulkAmount > 0
+                  ? t("debt.applyAmount").replace("{amount}", fmt(bulkPreview.applied, locale, currency))
+                  : t("debt.distributeAction")}
+              </button>
             </div>
           </form>
         </div>
