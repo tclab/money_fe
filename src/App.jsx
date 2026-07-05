@@ -5,6 +5,7 @@ import { useI18n } from "./i18n/index.jsx";
 import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
 import Login from "./auth/Login.jsx";
+import Landing from "./features/landing/Landing.jsx";
 import Dashboard from "./features/dashboard/Dashboard.jsx";
 import Expenses from "./features/expenses/Expenses.jsx";
 import Income from "./features/income/Income.jsx";
@@ -16,6 +17,7 @@ export default function App() {
   const { t, lang, setLang, theme, setTheme } = useI18n();
   const { session, user, loading, signOut } = useAuth();
   const [tab, setTab] = useState("dashboard");
+  const [authView, setAuthView] = useState("landing"); // "landing" | "login"
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -135,7 +137,11 @@ export default function App() {
     );
   }
 
-  if (!session) return <Login />;
+  if (!session) {
+    return authView === "login"
+      ? <Login onBack={() => setAuthView("landing")} />
+      : <Landing onGetStarted={() => setAuthView("login")} />;
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-zinc-950">

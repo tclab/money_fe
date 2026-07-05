@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Wallet } from "lucide-react";
+import { Wallet, ArrowLeft } from "lucide-react";
 import { useAuth } from "./index.jsx";
 import { useI18n } from "../i18n/index.jsx";
 import Btn from "../components/Btn.jsx";
 
-export default function Login() {
+export default function Login({ onBack }) {
   const { t } = useI18n();
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
@@ -41,6 +41,12 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-zinc-950 p-4">
       <form onSubmit={submit} className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 space-y-5">
+        {onBack && (
+          <button type="button" onClick={onBack}
+            className="flex items-center gap-1.5 text-xs font-mono text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+            <ArrowLeft size={14} /> {t("nav.menu")}
+          </button>
+        )}
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center">
             <Wallet size={16} className="text-emerald-600 dark:text-emerald-400" />
