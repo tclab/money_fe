@@ -24,8 +24,6 @@
   "auth.createTitle": "Crea tu cuenta",
   "auth.createSubtitle": "Empieza a organizar tu mes en menos de un minuto.",
   "auth.fullName": "Nombre completo",
-  "auth.continueWithGoogle": "Continuar con Google",
-  "auth.or": "o",
   "auth.emailInvalid": "Ingresa un correo válido.",
   "auth.keepSignedIn": "Mantener sesión iniciada",
   "auth.capsLock": "Bloq Mayús activado",

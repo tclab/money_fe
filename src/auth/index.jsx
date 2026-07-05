@@ -33,12 +33,6 @@ export function AuthProvider({ children }) {
       options: fullName ? { data: { full_name: fullName } } : undefined,
     });
 
-  const signInWithGoogle = () =>
-    supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}` },
-    });
-
   // Drop-in slot for a future passwordless flow; the backend already accepts
   // the same JWT regardless of how it was issued.
   const signInWithMagicLink = (email) =>
@@ -59,7 +53,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, loading, recovery, setRecovery, signIn, signUp, signInWithGoogle, signInWithMagicLink, resetPassword, updatePassword, updateProfile, signOut }}
+      value={{ session, user: session?.user ?? null, loading, recovery, setRecovery, signIn, signUp, signInWithMagicLink, resetPassword, updatePassword, updateProfile, signOut }}
     >
       {children}
     </AuthContext.Provider>

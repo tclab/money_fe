@@ -24,8 +24,6 @@
   "auth.createTitle": "Create your account",
   "auth.createSubtitle": "Start tracking your month in under a minute.",
   "auth.fullName": "Full name",
-  "auth.continueWithGoogle": "Continue with Google",
-  "auth.or": "or",
   "auth.emailInvalid": "Enter a valid email address.",
   "auth.keepSignedIn": "Keep me signed in",
   "auth.capsLock": "Caps Lock is on",
