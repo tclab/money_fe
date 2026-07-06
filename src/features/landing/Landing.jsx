@@ -78,6 +78,7 @@ html.dark .fintra-landing{
 .fintra-landing .hero{ padding:78px 0 40px; }
 .fintra-landing .hero::before{ content:""; position:absolute; inset:-120px 0 auto 0; height:520px; background:var(--glow); pointer-events:none; }
 .fintra-landing .hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:54px; align-items:center; }
+.fintra-landing .hero-grid>*{ min-width:0; }
 .fintra-landing .hero h1{ font-size:56px; font-weight:800; margin:16px 0 20px; }
 .fintra-landing .hero h1 .accent{ color:var(--em); }
 .fintra-landing .hero-cta{ display:flex; gap:12px; margin-top:30px; flex-wrap:wrap; }
@@ -92,7 +93,8 @@ html.dark .fintra-landing{
 .fintra-landing .mock .dots i{ width:9px; height:9px; border-radius:999px; background:var(--line); display:block; }
 .fintra-landing .mock .mtag{ font-size:10px; color:var(--t2); }
 .fintra-landing .mock-row{ display:grid; grid-template-columns:1.35fr 1fr; gap:12px; }
-.fintra-landing .mcard{ background:var(--card2); border:1px solid var(--line2); border-radius:13px; padding:15px; }
+.fintra-landing .mcard{ background:var(--card2); border:1px solid var(--line2); border-radius:13px; padding:15px; min-width:0; }
+.fintra-landing .big{ overflow-wrap:anywhere; }
 .fintra-landing .mcard .l{ font-size:9.5px; color:var(--t2); letter-spacing:.14em; text-transform:uppercase; font-family:ui-monospace,Menlo,monospace; }
 .fintra-landing .big{ font-size:30px; font-weight:700; margin-top:6px; letter-spacing:-.01em; }
 .fintra-landing .usd{ font-size:11px; color:var(--t2); margin-top:3px; }
@@ -208,6 +210,8 @@ html.dark .fintra-landing{
   .fintra-landing .sec-head h2{ font-size:30px; }
   .fintra-landing .problem-card,.fintra-landing .cta-card{ padding:30px 22px; }
   .fintra-landing .float-1,.fintra-landing .float-2{ display:none; }
+  .fintra-landing .mock-row{ grid-template-columns:1fr; }
+  .fintra-landing .big{ font-size:26px; }
 }
 `;
 
