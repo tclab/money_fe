@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Receipt, Users, Target, LogOut, ChevronDown, UserRound } from "lucide-react";
+import { Moon, Sun, Menu, X, Wallet, LayoutDashboard, BookOpen, TrendingUp, Receipt, Users, Target, LogOut, ChevronDown, UserRound, Globe, Check } from "lucide-react";
 import { useI18n } from "./i18n/index.jsx";
 import { useAuth } from "./auth/index.jsx";
 import { cn } from "./lib/utils.js";
@@ -73,26 +73,66 @@ export default function App() {
     </div>
   );
 
-  // Language segmented pill + theme toggle, shared by the top bar and mobile bar.
+  // Language dropdown. Self-contained (own open-state + ref) so it can render
+  // in both the desktop top bar and the mobile top bar without conflicts.
+  const LANGS = [
+    { code: "es", label: "Español", short: "ES" },
+    { code: "en", label: "English", short: "EN" },
+  ];
+  const LangSelect = () => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef();
+    useEffect(() => {
+      if (!open) return;
+      const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, [open]);
+    const current = LANGS.find((l) => l.code === lang) || LANGS[0];
+    return (
+      <div className="relative" ref={ref}>
+        <button onClick={() => setOpen((v) => !v)} title={t("prefs.language")}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+          <Globe size={14} className="shrink-0" />
+          <span className="font-mono text-xs font-semibold">{current.short}</span>
+          <ChevronDown size={13} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+              className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
+              {LANGS.map((l) => (
+                <button key={l.code} onClick={() => { setLang(l.code); setOpen(false); }}
+                  className={cn("w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-mono font-medium transition-colors",
+                    lang === l.code
+                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
+                      : "text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                  )}>
+                  <span>{l.label}</span>
+                  {lang === l.code && <Check size={14} className="shrink-0" />}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  // Theme toggle button, shared by the desktop and mobile bars.
+  const ThemeToggle = () => (
+    <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      title={theme === "dark" ? t("theme.light") : t("theme.dark")}
+      className="flex items-center justify-center rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+      {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+    </button>
+  );
+
+  // Language + theme controls for the desktop top bar.
   const langThemeControls = (
     <div className="flex items-center gap-2">
-      <div className="flex items-center rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden text-xs font-mono font-semibold">
-        {[{ code: "es", label: "ES" }, { code: "en", label: "EN" }].map(({ code, label }) => (
-          <button key={code} onClick={() => setLang(code)}
-            className={cn("px-2.5 py-1.5 transition-colors",
-              lang === code
-                ? "bg-emerald-500 text-white"
-                : "text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800"
-            )}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        title={theme === "dark" ? t("theme.light") : t("theme.dark")}
-        className="flex items-center justify-center rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-        {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-      </button>
+      <LangSelect />
+      <ThemeToggle />
     </div>
   );
 
@@ -173,10 +213,9 @@ export default function App() {
             {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "transactions" ? t("nav.transactions") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : tab === "profile" ? t("nav.profile") : t("nav.expenses")}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+        <div className="flex items-center gap-2">
+          <LangSelect />
+          <ThemeToggle />
           <UserMenu />
         </div>
       </div>
