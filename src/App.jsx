@@ -22,18 +22,10 @@ export default function App() {
   const [authView, setAuthView] = useState("landing"); // "landing" | "login"
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = useRef();
 
   const userName = (user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User");
   const userInitial = userName.charAt(0).toUpperCase();
 
-  useEffect(() => {
-    if (!userMenuOpen) return;
-    const handler = (e) => { if (!userMenuRef.current?.contains(e.target)) setUserMenuOpen(false); };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [userMenuOpen]);
   const navItems = [
     { id: "dashboard", label: t("nav.dashboard"), Icon: LayoutDashboard },
     { id: "expenses", label: t("nav.expenses"), Icon: BookOpen },
@@ -105,36 +97,48 @@ export default function App() {
   );
 
   // Avatar + name + chevron, with a dropdown holding sign out.
-  const userMenu = (
-    <div className="relative" ref={userMenuRef}>
-      <button onClick={() => setUserMenuOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
-        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-mono font-bold shrink-0">{userInitial}</span>
-        <span className="hidden sm:block max-w-[140px] truncate font-mono text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
-        <ChevronDown size={14} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", userMenuOpen && "rotate-180")} />
-      </button>
-      <AnimatePresence>
-        {userMenuOpen && (
-          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
-            className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
-            <div className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800">
-              <div className="font-mono text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
-              {user?.email && <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
-            </div>
-            <button onClick={() => { setUserMenuOpen(false); setTab("profile"); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
-              <UserRound size={14} className="shrink-0" /> {t("nav.profile")}
-            </button>
-            <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
-            <button onClick={() => { setUserMenuOpen(false); signOut(); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
-              <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+  // Self-contained so it can render in both the desktop and mobile bars
+  // without sharing open-state or a single ref between instances.
+  const UserMenu = () => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef();
+    useEffect(() => {
+      if (!open) return;
+      const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }, [open]);
+    return (
+      <div className="relative" ref={ref}>
+        <button onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-mono font-bold shrink-0">{userInitial}</span>
+          <span className="hidden sm:block max-w-[140px] truncate font-mono text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
+          <ChevronDown size={14} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+              className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
+              <div className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800">
+                <div className="font-mono text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
+                {user?.email && <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
+              </div>
+              <button onClick={() => { setOpen(false); setTab("profile"); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+                <UserRound size={14} className="shrink-0" /> {t("nav.profile")}
+              </button>
+              <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
+              <button onClick={() => { setOpen(false); signOut(); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+                <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -169,9 +173,12 @@ export default function App() {
             {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "transactions" ? t("nav.transactions") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : tab === "profile" ? t("nav.profile") : t("nav.expenses")}
           </span>
         </div>
-        <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-lg text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <UserMenu />
+        </div>
       </div>
 
       {/* Mobile drawer */}
@@ -209,7 +216,7 @@ export default function App() {
         <header className="hidden md:flex items-center justify-end gap-3 h-14 shrink-0 px-6 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800">
           {langThemeControls}
           <div className="w-px h-6 bg-slate-200 dark:bg-zinc-800" />
-          {userMenu}
+          <UserMenu />
         </header>
 
         {/* Main content */}
