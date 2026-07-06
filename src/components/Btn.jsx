@@ -1,7 +1,7 @@
 import { cn } from "../lib/utils.js";
 
 export default function Btn({ onClick, variant = "default", size = "sm", className, children, disabled }) {
-  const base = "inline-flex items-center gap-1.5 font-mono font-medium rounded-lg transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
+  const base = "inline-flex items-center gap-1.5 font-medium rounded-lg transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
   const sizes = { sm: "text-xs px-3 py-1.5", md: "text-sm px-4 py-2", icon: "p-2" };
   const variants = {
     default: "bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700",

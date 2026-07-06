@@ -57,7 +57,7 @@ export default function PageHeader({ viewDate, onSelectMonth, title, meta, metri
             </button>
           </div>
         ) : null}
-        <div className={cn(TYPE.title, "text-slate-900 dark:text-zinc-50 font-mono mt-2")}>{title}</div>
+        <div className={cn(TYPE.title, "text-slate-900 dark:text-zinc-50 mt-2")}>{title}</div>
         {meta && <div className={cn(TYPE.body, "text-slate-400 dark:text-zinc-500 mt-0.5")}>{meta}</div>}
       </div>
 

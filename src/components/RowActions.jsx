@@ -43,7 +43,7 @@ export default function RowActions({ items = [], className }) {
               <button key={i} disabled={it.disabled}
                 onMouseDown={(e) => { e.stopPropagation(); if (it.disabled) return; setPos(null); it.onClick(); }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-1.5 text-xs font-mono font-medium text-left transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
+                  "w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-left transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
                   it.tone === "danger"
                     ? "text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                     : "text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800"

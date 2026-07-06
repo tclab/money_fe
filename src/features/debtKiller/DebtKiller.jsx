@@ -386,7 +386,7 @@ export default function DebtKiller() {
         {/* Expanded abono history */}
         {isOpen && (
           <div className="px-3.5 pt-1 pb-4 bg-slate-50 dark:bg-zinc-800/40">
-            <div className={cn(TYPE.label, "font-mono mb-2")}>{t("debt.history")}</div>
+            <div className={cn(TYPE.label, "mb-2")}>{t("debt.history")}</div>
             <div className="flex flex-col gap-1.5">
               {ordered.map(pay => (
                 <div key={pay.id} className="flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-xs">
@@ -400,13 +400,13 @@ export default function DebtKiller() {
                 </div>
               ))}
               {savingPayments.has(d.id) ? (
-                <span className="flex items-center gap-1.5 text-xs font-mono text-slate-400 dark:text-zinc-500 px-3 py-2">
+                <span className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-zinc-500 px-3 py-2">
                   <Loader2 size={12} className="animate-spin" /> {t("sync.saving")}
                 </span>
               ) : (
                 <button onClick={(e) => { e.stopPropagation(); startAddPayment(d.id); }}
                   disabled={remaining === 0}
-                  className="flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
+                  className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
                   <Plus size={12} /> {t("debt.addPayment")}
                 </button>
               )}
@@ -442,7 +442,7 @@ export default function DebtKiller() {
         ].map(tab => (
           <button key={tab.key} onClick={() => setDebtTab(tab.key)}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2 text-xs font-mono font-semibold rounded-t-lg border-b-2 transition-colors",
+              "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors",
               debtTab === tab.key
                 ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
                 : "border-transparent text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300"
@@ -462,7 +462,7 @@ export default function DebtKiller() {
       {availablePersons.length > 1 && (
         <div className="flex gap-2 flex-wrap px-4 pt-3">
           <button onClick={() => setDebtPersonFilter(null)}
-            className={cn("text-xs font-mono px-3 py-1 rounded-full border transition-colors",
+            className={cn("text-xs px-3 py-1 rounded-full border transition-colors",
               !debtPersonFilter
                 ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
                 : "border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300"
@@ -474,7 +474,7 @@ export default function DebtKiller() {
             if (!person) return null;
             return (
               <button key={pid} onClick={() => setDebtPersonFilter(pid)}
-                className={cn("text-xs font-mono px-3 py-1 rounded-full border transition-colors",
+                className={cn("text-xs px-3 py-1 rounded-full border transition-colors",
                   debtPersonFilter === pid
                     ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40"
                     : "border-slate-200 dark:border-zinc-700 text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300"
@@ -515,7 +515,7 @@ export default function DebtKiller() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {kpis.map(k => (
                   <div key={k.label} className="bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 rounded-xl p-4 min-w-0">
-                    <div className={cn(TYPE.label, "font-mono")}>{k.label}</div>
+                    <div className={cn(TYPE.label)}>{k.label}</div>
                     <div className="text-base sm:text-lg font-bold font-mono mt-1.5 truncate" style={{ color: k.color }}>{k.value}</div>
                     <div className="text-[10px] text-slate-400 dark:text-zinc-600 mt-1">{k.sub}</div>
                   </div>
@@ -530,7 +530,7 @@ export default function DebtKiller() {
                   <div className="min-w-[760px]">
                     {/* Header */}
                     <div style={{ gridTemplateColumns: COLS }}
-                      className={cn(TYPE.label, "font-mono grid gap-3.5 px-3.5 py-2.5 border-b border-slate-200 dark:border-zinc-800")}>
+                      className={cn(TYPE.label, "grid gap-3.5 px-3.5 py-2.5 border-b border-slate-200 dark:border-zinc-800")}>
                       <div>{t("debt.colLoan")}</div>
                       <div>{t("debt.colProgress")}</div>
                       <div className="text-right">{t("col.cantidad")}</div>
@@ -544,7 +544,7 @@ export default function DebtKiller() {
                     {/* Totals footer */}
                     <div style={{ gridTemplateColumns: COLS }}
                       className="grid gap-3.5 px-3.5 py-3 items-center text-[13px] border-t border-slate-200 dark:border-zinc-800">
-                      <div className={cn(TYPE.label, "font-mono")}>
+                      <div className={cn(TYPE.label)}>
                         {t("debt.totals")} · {items.length}
                       </div>
                       <div />
@@ -568,7 +568,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setShowForm(false); setFormErrors({}); }}>
           <form onSubmit={handleCreate} noValidate onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className={cn(TYPE.label, "font-mono")}>{t("debt.newDebt")}</div>
+            <div className={cn(TYPE.label)}>{t("debt.newDebt")}</div>
             <div>
               <input placeholder={t("debt.description")} value={form.description}
                 onChange={e => { setForm(f => ({ ...f, description: e.target.value })); setFormErrors(fe => ({ ...fe, description: "" })); }}
@@ -618,7 +618,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setAddingPayment(null)}>
           <form onSubmit={e => handleAddPayment(e, addingPayment)} noValidate onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className={cn(TYPE.label, "font-mono")}>{t("debt.addPayment")}</div>
+            <div className={cn(TYPE.label)}>{t("debt.addPayment")}</div>
             <AmountInput asString value={paymentForm.amount}
               onChange={v => { setPaymentForm(f => ({ ...f, amount: v })); setPaymentError(""); }}
               format={n => fmt(n, locale, currency)}
@@ -667,7 +667,7 @@ export default function DebtKiller() {
             <div className="px-6 py-4 overflow-y-auto flex flex-col gap-4">
               {/* Amount */}
               <div>
-                <label className={cn(TYPE.label, "font-mono block mb-2")}>{t("debt.totalToDistribute")}</label>
+                <label className={cn(TYPE.label, "block mb-2")}>{t("debt.totalToDistribute")}</label>
                 <div className={cn("flex items-center rounded-xl border px-3 py-3",
                   bulkAmount > 0 ? "border-emerald-500/60" : "border-slate-200 dark:border-zinc-700")}>
                   <span className={cn("font-mono text-xl", bulkAmount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-300 dark:text-zinc-600")}>$</span>
@@ -685,7 +685,7 @@ export default function DebtKiller() {
               {bulkPreview.active.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className={cn(TYPE.label, "font-mono")}>{t("debt.splitPreview")}</span>
+                    <span className={cn(TYPE.label)}>{t("debt.splitPreview")}</span>
                     <span className="text-[11px] font-mono text-slate-400 dark:text-zinc-500">
                       {t("debt.applied").replace("{amount}", fmt(bulkPreview.applied, locale, currency))}
                     </span>
@@ -704,7 +704,7 @@ export default function DebtKiller() {
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-sm text-slate-800 dark:text-zinc-100 truncate">{x.debt.description}</span>
                               {cleared && (
-                                <span className="text-[9px] font-mono font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                                   {t("debt.cleared")}
                                 </span>
                               )}
@@ -739,13 +739,13 @@ export default function DebtKiller() {
               {/* Date + Person */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={cn(TYPE.label, "font-mono block mb-2")}>{t("debt.date")}</label>
+                  <label className={cn(TYPE.label, "block mb-2")}>{t("debt.date")}</label>
                   <input type="date" value={bulkForm.date}
                     onChange={e => setBulkForm(f => ({ ...f, date: e.target.value }))} className={inputCls} />
                 </div>
                 {people.length > 0 && (
                   <div>
-                    <label className={cn(TYPE.label, "font-mono block mb-2")}>
+                    <label className={cn(TYPE.label, "block mb-2")}>
                       {t("debt.person")} <span className="normal-case tracking-normal text-slate-400 dark:text-zinc-600">· {t("debt.optional")}</span>
                     </label>
                     <select value={bulkForm.person_id} onChange={e => { setBulkError(""); setBulkForm(f => ({ ...f, person_id: e.target.value })); }} className={inputCls}>
@@ -758,7 +758,7 @@ export default function DebtKiller() {
 
               {/* Note */}
               <div>
-                <label className={cn(TYPE.label, "font-mono block mb-2")}>
+                <label className={cn(TYPE.label, "block mb-2")}>
                   {t("debt.note")} <span className="normal-case tracking-normal text-slate-400 dark:text-zinc-600">· {t("debt.optional")}</span>
                 </label>
                 <input placeholder={t("debt.notePlaceholder")} value={bulkForm.note}
@@ -793,7 +793,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmDeleteDebt(null)}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-4 shadow-xl">
-            <div className={cn(TYPE.label, "font-mono")}>{t("expense.deleteTitle")}</div>
+            <div className={cn(TYPE.label)}>{t("expense.deleteTitle")}</div>
             <p className="text-sm text-slate-700 dark:text-zinc-300">
               {t("expense.deleteDesc").replace("{name}", confirmDeleteDebt.description)}
             </p>
@@ -812,7 +812,7 @@ export default function DebtKiller() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditingDebt(null)}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-6 flex flex-col gap-3 shadow-xl">
-            <div className={cn(TYPE.label, "font-mono")}>{t("debt.editDebt")}</div>
+            <div className={cn(TYPE.label)}>{t("debt.editDebt")}</div>
             <input
               placeholder={t("debt.description")}
               value={editingDebt.description}

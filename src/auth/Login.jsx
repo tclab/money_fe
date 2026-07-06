@@ -75,7 +75,7 @@ export default function Login({ onBack }) {
   const submitLabel = isReset ? t("auth.sendResetLink") : isSignUp ? t("auth.signUp") : t("auth.signIn");
 
   const fieldCls =
-    "w-full h-11 px-3 rounded-lg border bg-white dark:bg-zinc-900 text-sm font-mono text-slate-800 dark:text-zinc-100 focus:outline-none transition-colors";
+    "w-full h-11 px-3 rounded-lg border bg-white dark:bg-zinc-900 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none transition-colors";
   const fieldBorder = (err) => (err ? "border-rose-500 focus:border-rose-500" : "border-slate-200 dark:border-zinc-700 focus:border-emerald-500");
   const labelCls = "text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase block mb-1.5";
 
@@ -91,7 +91,7 @@ export default function Login({ onBack }) {
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40">
               <Wallet size={16} className="text-emerald-600 dark:text-emerald-400" />
             </span>
-            <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 tracking-tight">{t("expenses.brand")}</span>
+            <span className="font-bold text-slate-800 dark:text-zinc-100 tracking-tight">{t("expenses.brand")}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden text-xs font-mono font-semibold">
@@ -113,19 +113,19 @@ export default function Login({ onBack }) {
           <div className="w-full max-w-[400px] py-10">
             {onBack && (
               <button type="button" onClick={onBack}
-                className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition mb-6">
+                className="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition mb-6">
                 <ArrowLeft size={14} /> {t("auth.backHome")}
               </button>
             )}
 
-            <h1 className="text-2xl font-extrabold font-mono tracking-tight text-slate-900 dark:text-zinc-50">{title}</h1>
-            {subtitle && <p className="text-sm font-mono text-slate-400 dark:text-zinc-500 mt-1.5">{subtitle}</p>}
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-50">{title}</h1>
+            {subtitle && <p className="text-sm text-slate-400 dark:text-zinc-500 mt-1.5">{subtitle}</p>}
 
             {!isReset && (
               <div className="flex p-1 gap-1 mt-6 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900">
                 {[{ id: "signin", label: t("auth.signIn") }, { id: "signup", label: t("auth.signUpTitle") }].map(({ id, label }) => (
                   <button key={id} type="button" onClick={() => switchMode(id)}
-                    className={cn("flex-1 h-8 rounded-lg text-xs font-mono font-semibold transition-colors",
+                    className={cn("flex-1 h-8 rounded-lg text-xs font-semibold transition-colors",
                       mode === id ? "bg-emerald-500 text-white" : "text-slate-500 dark:text-zinc-400")}>
                     {label}
                   </button>
@@ -147,7 +147,7 @@ export default function Login({ onBack }) {
                 <input type="email" autoComplete="email" required value={email}
                   onChange={(e) => { setEmail(e.target.value); setEmailErr(false); }}
                   className={cn(fieldCls, fieldBorder(emailErr))} />
-                {emailErr && <div className="text-[11px] font-mono text-rose-600 dark:text-rose-400 mt-1">{t("auth.emailInvalid")}</div>}
+                {emailErr && <div className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">{t("auth.emailInvalid")}</div>}
               </div>
 
               {!isReset && (
@@ -156,7 +156,7 @@ export default function Login({ onBack }) {
                     <label className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{t("auth.password")}</label>
                     {!isSignUp && (
                       <button type="button" onClick={() => switchMode("reset")}
-                        className="text-[11px] font-mono text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                        className="text-[11px] text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition">
                         {t("auth.forgotPassword")}
                       </button>
                     )}
@@ -174,7 +174,7 @@ export default function Login({ onBack }) {
                     </button>
                   </div>
                   {caps && (
-                    <div className="flex items-center gap-1.5 text-[11px] font-mono text-amber-500 mt-1">
+                    <div className="flex items-center gap-1.5 text-[11px] text-amber-500 mt-1">
                       <ArrowBigUp size={13} /> {t("auth.capsLock")}
                     </div>
                   )}
@@ -185,7 +185,7 @@ export default function Login({ onBack }) {
                           <span key={i} className={cn("h-1 flex-1 rounded-full", i < score ? strengthColor : "bg-slate-200 dark:bg-zinc-700")} />
                         ))}
                       </div>
-                      <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-600 mt-1">
+                      <div className="text-[11px] text-slate-400 dark:text-zinc-600 mt-1">
                         {password ? `${strengthWord}` : t("auth.strengthHint")}
                       </div>
                     </div>
@@ -194,15 +194,15 @@ export default function Login({ onBack }) {
               )}
 
               {!isSignUp && !isReset && (
-                <label className="flex items-center gap-2.5 text-xs font-mono text-slate-600 dark:text-zinc-300 cursor-pointer select-none">
+                <label className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-zinc-300 cursor-pointer select-none">
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)}
                     className="w-4 h-4 accent-emerald-500" />
                   {t("auth.keepSignedIn")}
                 </label>
               )}
 
-              {error && <div className="text-xs font-mono text-rose-600 dark:text-rose-400">{error}</div>}
-              {info && <div className="text-xs font-mono text-emerald-600 dark:text-emerald-400">{info}</div>}
+              {error && <div className="text-xs text-rose-600 dark:text-rose-400">{error}</div>}
+              {info && <div className="text-xs text-emerald-600 dark:text-emerald-400">{info}</div>}
 
               <Btn variant="primary" size="md" className="w-full justify-center" disabled={busy}>
                 {submitLabel}
@@ -210,14 +210,14 @@ export default function Login({ onBack }) {
 
               {isReset && (
                 <button type="button" onClick={() => switchMode("signin")}
-                  className="w-full text-center text-xs font-mono text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                  className="w-full text-center text-xs text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition">
                   {t("auth.toSignIn")}
                 </button>
               )}
             </form>
 
             {!isReset && (
-              <div className="flex items-center justify-center gap-2 mt-6 text-[11px] font-mono text-slate-400 dark:text-zinc-600">
+              <div className="flex items-center justify-center gap-2 mt-6 text-[11px] text-slate-400 dark:text-zinc-600">
                 <ShieldCheck size={14} className="text-emerald-500" />
                 {t("auth.trustEncrypted")}
               </div>
@@ -225,7 +225,7 @@ export default function Login({ onBack }) {
           </div>
         </div>
 
-        <div className="text-[11px] font-mono text-slate-400 dark:text-zinc-600">
+        <div className="text-[11px] text-slate-400 dark:text-zinc-600">
           © 2026 {t("expenses.brand")} · <button type="button" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition">{t("auth.privacy")}</button> · <button type="button" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition">{t("auth.terms")}</button>
         </div>
       </div>
@@ -247,7 +247,7 @@ export default function Login({ onBack }) {
           }} />
         <div className="relative max-w-[440px]">
           <div className="text-[11px] font-mono tracking-widest uppercase text-emerald-600 dark:text-emerald-400">{t("auth.brandEyebrow")}</div>
-          <h2 className="text-[34px] leading-[1.08] font-extrabold font-mono tracking-tight mt-3 text-slate-900 dark:text-zinc-50">
+          <h2 className="text-[34px] leading-[1.08] font-extrabold tracking-tight mt-3 text-slate-900 dark:text-zinc-50">
             {t("auth.brandHeadline1")}<br />
             <span className="text-emerald-600 dark:text-emerald-400">{t("auth.brandHeadline2")}</span>
           </h2>

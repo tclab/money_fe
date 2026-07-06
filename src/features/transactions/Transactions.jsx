@@ -186,7 +186,7 @@ export default function Transactions() {
   };
 
   if (error) return (
-    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm font-mono">
+    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
       {error}
     </div>
   );
@@ -263,16 +263,16 @@ export default function Transactions() {
           </Btn>
         </div>
         {noCategories ? (
-          <p className="mt-2 text-xs font-mono text-slate-400 dark:text-zinc-500">{t("transactions.noCategories")}</p>
+          <p className="mt-2 text-xs text-slate-400 dark:text-zinc-500">{t("transactions.noCategories")}</p>
         ) : (
-          <p className="mt-2 px-1 text-[10px] font-mono uppercase tracking-[0.16em] text-slate-400 dark:text-zinc-600 hidden sm:block">{t("transactions.enterHint")}</p>
+          <p className="mt-2 px-1 text-[10px] uppercase tracking-[0.16em] text-slate-400 dark:text-zinc-600 hidden sm:block">{t("transactions.enterHint")}</p>
         )}
       </div>
 
       {/* Ledger grouped by day */}
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
         {/* Column header */}
-        <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/40 font-mono">
+        <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/40">
           <span className={cn(TYPE.label, "flex-1")}>{t("transactions.category")}</span>
           <span className={cn(TYPE.label, "text-right w-28 sm:w-36")}>{t("transactions.amount")}</span>
         </div>
@@ -284,18 +284,18 @@ export default function Transactions() {
             <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500">
               <Receipt size={22} />
             </div>
-            <div className="text-sm font-mono font-bold text-slate-700 dark:text-zinc-200 mt-1">{t("transactions.empty")}</div>
+            <div className="text-sm font-bold text-slate-700 dark:text-zinc-200 mt-1">{t("transactions.empty")}</div>
             <div className="text-xs font-sans text-slate-400 dark:text-zinc-500 max-w-[260px]">{t("transactions.emptyHint")}</div>
           </div>
         ) : (
-          <div className="font-mono text-xs">
+          <div className="text-xs">
             {byDay.map((g) => {
               const dayTotal = g.items.reduce((s, e) => s + (e.amount || 0), 0);
               return (
                 <Fragment key={g.date}>
                   <div className="flex items-center px-3 py-2 border-b border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
-                    <span className="flex-1 font-bold text-slate-600 dark:text-zinc-300 uppercase tracking-wider">{dayLabel(g.date)}</span>
-                    <span className="text-right w-28 sm:w-36 font-semibold text-slate-400 dark:text-zinc-500">{fmt(dayTotal, locale, currency)}</span>
+                    <span className="flex-1 font-mono font-bold text-slate-600 dark:text-zinc-300 uppercase tracking-wider">{dayLabel(g.date)}</span>
+                    <span className="text-right w-28 sm:w-36 font-mono font-semibold text-slate-400 dark:text-zinc-500">{fmt(dayTotal, locale, currency)}</span>
                   </div>
                   {g.items.map((e, i) => (
                     <div
@@ -322,7 +322,7 @@ export default function Transactions() {
                           </span>
                         )}
                       </div>
-                      <span className={cn("text-right w-28 sm:w-36 font-semibold", TONE.neutral)}>
+                      <span className={cn("text-right w-28 sm:w-36 font-mono font-semibold", TONE.neutral)}>
                         {fmt(e.amount, locale, currency)}
                       </span>
                     </div>
@@ -334,9 +334,9 @@ export default function Transactions() {
         )}
 
         {/* Sticky grand total */}
-        <div className="sticky bottom-0 flex items-center px-3 sm:px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur font-mono">
+        <div className="sticky bottom-0 flex items-center px-3 sm:px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 backdrop-blur">
           <div className={cn(TYPE.label, "flex-1")}>{t("transactions.total")}</div>
-          <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 text-right w-28 sm:w-36">{fmt(grandTotal, locale, currency)}</div>
+          <div className="text-xl font-mono font-bold text-slate-900 dark:text-zinc-100 text-right w-28 sm:w-36">{fmt(grandTotal, locale, currency)}</div>
         </div>
       </div>
 
@@ -427,13 +427,13 @@ export default function Transactions() {
         </>}
       >
         {pendingDelete && (
-          <div className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 px-3 py-2.5 font-mono">
+          <div className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700 px-3 py-2.5">
             <span className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200 min-w-0">
               <Dot id={pendingDelete.category_id} />
               {catName(pendingDelete.category_id)}
               {pendingDelete.note && <span className="font-sans font-normal text-slate-400 dark:text-zinc-500 truncate">· {pendingDelete.note}</span>}
             </span>
-            <span className="text-sm font-bold text-rose-600 dark:text-rose-400 shrink-0">{fmt(pendingDelete.amount, locale, currency)}</span>
+            <span className="text-sm font-mono font-bold text-rose-600 dark:text-rose-400 shrink-0">{fmt(pendingDelete.amount, locale, currency)}</span>
           </div>
         )}
       </Modal>
@@ -449,18 +449,18 @@ export default function Transactions() {
         {editing && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.date")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.date")}</label>
               <input type="date" value={editing.date} onChange={(e) => setEditing((p) => ({ ...p, date: e.target.value }))} className={INPUT} />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
               <select value={editing.category_id ?? ""} onChange={(e) => setEditing((p) => ({ ...p, category_id: e.target.value }))} className={INPUT}>
                 <option value="">{t("transactions.uncategorized")}</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.amount")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.amount")}</label>
               <AmountInput
                 value={editing.amount}
                 onChange={(v) => setEditing((p) => ({ ...p, amount: v }))}
@@ -469,11 +469,11 @@ export default function Transactions() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.note")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.note")}</label>
               <input type="text" value={editing.note} onChange={(e) => setEditing((p) => ({ ...p, note: e.target.value }))} className={INPUT} />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.method")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.method")}</label>
               <input type="text" value={editing.method} onChange={(e) => setEditing((p) => ({ ...p, method: e.target.value }))} className={INPUT} />
             </div>
           </div>

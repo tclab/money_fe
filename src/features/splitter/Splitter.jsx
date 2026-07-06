@@ -386,7 +386,7 @@ export default function Splitter() {
                       {p.features.map((f) => (
                         <span
                           key={f}
-                          className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                          className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
                           style={{ background: `${p.color}22`, color: p.color }}
                         >
                           {f}
@@ -408,7 +408,7 @@ export default function Splitter() {
 
         {perPerson.length > 0 && pool > 0 && (
           <div className="flex flex-col gap-2">
-            <div className={cn(TYPE.label, "font-mono")}>{t("splitter.distribution")}</div>
+            <div className={cn(TYPE.label)}>{t("splitter.distribution")}</div>
             <div className="h-8 rounded-lg overflow-hidden flex border border-slate-200 dark:border-zinc-800">
               {perPerson.map((p) => (
                 <div key={p.id}
@@ -433,7 +433,7 @@ export default function Splitter() {
         {createModal && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.concept")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.concept")}</label>
               <input
                 type="text"
                 value={createModal.label}
@@ -444,7 +444,7 @@ export default function Splitter() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
               <AmountInput
                 value={createModal.value}
                 onChange={(v) => setCreateModal((p) => ({ ...p, value: v }))}
@@ -454,7 +454,7 @@ export default function Splitter() {
             </div>
             {createModal.type === "discount" && people.length > 0 && (
               <div>
-                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("splitter.people")}</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("splitter.people")}</label>
                 <select
                   value={createModal.person_id || ""}
                   onChange={(e) => setCreateModal((p) => ({ ...p, person_id: e.target.value || null }))}
@@ -482,7 +482,7 @@ export default function Splitter() {
         {editModal && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.concept")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.concept")}</label>
               <input
                 type="text"
                 value={editModal.label}
@@ -493,7 +493,7 @@ export default function Splitter() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
               <AmountInput
                 value={editModal.value}
                 onChange={(v) => setEditModal((p) => ({ ...p, value: v }))}
@@ -503,7 +503,7 @@ export default function Splitter() {
             </div>
             {editModal.type === "discount" && people.length > 0 && (
               <div>
-                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("splitter.people")}</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("splitter.people")}</label>
                 <select
                   value={editModal.person_id || ""}
                   onChange={(e) => setEditModal((p) => ({ ...p, person_id: e.target.value || null }))}
@@ -530,7 +530,7 @@ export default function Splitter() {
         <div className="space-y-3 mb-2">
           {unlinkedPeople.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">{t("splitter.addExisting")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">{t("splitter.addExisting")}</label>
               {unlinkedPeople.map((p) => {
                 const initials = p.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
                 return (
@@ -564,10 +564,10 @@ export default function Splitter() {
           {personCreateForm && (
             <div className={`space-y-3 ${unlinkedPeople.length > 0 ? "border-t border-slate-200 dark:border-zinc-700 pt-3" : ""}`}>
               {unlinkedPeople.length > 0 && (
-                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">{t("splitter.createNew")}</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">{t("splitter.createNew")}</label>
               )}
               <div>
-                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
                 <input
                   type="text"
                   value={personCreateForm.name}
@@ -578,7 +578,7 @@ export default function Splitter() {
                 />
               </div>
               <div>
-                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
                 <input
                   type="number"
                   min="0"
@@ -589,7 +589,7 @@ export default function Splitter() {
                 />
               </div>
               <div>
-                <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
                 <div className="flex gap-2">
                   {SPLITTER_COLORS.map((c) => (
                     <button
@@ -618,7 +618,7 @@ export default function Splitter() {
         {editPersonModal && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
               <input
                 type="text"
                 value={editPersonModal.name}
@@ -629,7 +629,7 @@ export default function Splitter() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Share %</label>
               <input
                 type="number"
                 min="0"
@@ -640,7 +640,7 @@ export default function Splitter() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Color</label>
               <div className="flex gap-2">
                 {SPLITTER_COLORS.map((c) => (
                   <button

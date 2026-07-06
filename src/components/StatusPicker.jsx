@@ -69,7 +69,7 @@ export default function StatusPicker({ status, onChange, options = EXPENSE_STATU
               )}
             >
               <span className={cn("inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold shrink-0", cfg.cls)}>{cfg.ch}</span>
-              <span className="text-slate-700 dark:text-zinc-200 font-mono">{t(`status.${s}`)}</span>
+              <span className="text-slate-700 dark:text-zinc-200">{t(`status.${s}`)}</span>
             </button>
           ); })}
         </div>

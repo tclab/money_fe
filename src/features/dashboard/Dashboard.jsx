@@ -60,9 +60,11 @@ export default function Dashboard() {
   }, [monthKey]);
 
   const incomeTotal = sum(income);
-  const recurringTotal = sum(expenses);
+  // Only paid + scheduled recurring bills count toward outflow.
+  const countedExpenses = expenses.filter((e) => e.status === "paid" || e.status === "scheduled");
+  const recurringTotal = sum(countedExpenses);
   const transactionTotal = sum(transactions);
-  // Total outflow = recurring bills + variable daily spend.
+  // Total outflow = counted recurring bills + all variable daily spend.
   const expenseTotal = recurringTotal + transactionTotal;
   const net = incomeTotal - expenseTotal;
   const savingsRate = incomeTotal > 0 ? net / incomeTotal : 0;
@@ -73,12 +75,12 @@ export default function Dashboard() {
   const receivedPct = incomeTotal > 0 ? (received / incomeTotal) * 100 : 0;
 
   // Transactions are realized spend, so they count as already paid.
-  const paid = sum(expenses.filter((e) => e.status === "paid")) + transactionTotal;
+  const paid = sum(countedExpenses.filter((e) => e.status === "paid")) + transactionTotal;
   const pending = expenseTotal - paid;
   const paidPct = expenseTotal > 0 ? (paid / expenseTotal) * 100 : 0;
 
   const incomeBreakdown = breakdown(income, incomeCats);
-  const expenseBreakdown = breakdown([...expenses, ...transactions], [...expenseCats, ...transactionCats]);
+  const expenseBreakdown = breakdown([...countedExpenses, ...transactions], [...expenseCats, ...transactionCats]);
 
   const positive = net >= 0;
 
@@ -89,13 +91,13 @@ export default function Dashboard() {
   );
 
   if (error) return (
-    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm font-mono">
+    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
       {error}
     </div>
   );
 
   const CARD = "rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900";
-  const LABEL = cn(TYPE.label, "font-mono");
+  const LABEL = cn(TYPE.label);
 
   const savedPctLabel = `${savingsRate >= 0 ? "" : "-"}${Math.abs(savingsRate * 100).toFixed(1)}%`;
 
@@ -135,7 +137,7 @@ export default function Dashboard() {
             : "border-rose-200 dark:border-rose-500/25 bg-rose-50/50 dark:bg-rose-500/[0.06]"
         )}>
           <div className="flex items-center justify-between">
-            <span className={cn("text-[11px] font-semibold uppercase tracking-[0.16em] font-mono", positive ? "text-emerald-700/70 dark:text-emerald-400/70" : "text-rose-700/70 dark:text-rose-400/70")}>
+            <span className={cn("text-[11px] font-semibold uppercase tracking-[0.16em]", positive ? "text-emerald-700/70 dark:text-emerald-400/70" : "text-rose-700/70 dark:text-rose-400/70")}>
               {t("dashboard.netThisMonth")}
             </span>
             <TrendingUp size={16} className={positive ? "text-emerald-500" : "text-rose-500 rotate-180"} />
@@ -168,7 +170,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-2 font-mono text-3xl font-bold tracking-tight text-slate-800 dark:text-zinc-100">{fmt(expenseTotal, locale, currency)}</div>
           <div className={cn("mt-1", TYPE.body, "text-slate-500 dark:text-zinc-400")}>
-            {expenses.length + transactions.length} {t("expenses.transactions")} · {expenseCats.length} {t("expenses.categories")}
+            {countedExpenses.length + transactions.length} {t("expenses.transactions")} · {expenseCats.length} {t("expenses.categories")}
           </div>
         </div>
       </div>
@@ -176,9 +178,9 @@ export default function Dashboard() {
       {/* Settled this month */}
       <div className={CARD}>
         <div className="border-b border-slate-200 dark:border-zinc-800 px-6 py-4">
-          <span className={cn(TYPE.label, "font-mono")}>{t("dashboard.settled")}</span>
+          <span className={cn(TYPE.label)}>{t("dashboard.settled")}</span>
         </div>
-        <div className="grid gap-6 p-6 sm:grid-cols-2 font-mono">
+        <div className="grid gap-6 p-6 sm:grid-cols-2">
           {/* income received vs expected */}
           <div>
             <div className="flex items-center justify-between text-xs">
@@ -231,11 +233,11 @@ function BreakdownCard({ title, total, rows, tone, locale, currency, card, empty
   return (
     <div className={card}>
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 px-6 py-4">
-        <span className={cn(TYPE.label, "font-mono")}>{title}</span>
+        <span className={cn(TYPE.label)}>{title}</span>
         <span className="font-mono text-xs text-slate-400 dark:text-zinc-500">{fmt(total, locale, currency)}</span>
       </div>
       <div className="space-y-3.5 px-6 py-5">
-        {rows.length === 0 && <div className="text-xs text-slate-400 dark:text-zinc-500 font-mono">{empty}</div>}
+        {rows.length === 0 && <div className="text-xs text-slate-400 dark:text-zinc-500">{empty}</div>}
         {rows.map((r) => (
           <div key={r.id}>
             <div className="flex items-baseline justify-between text-[13px]">
