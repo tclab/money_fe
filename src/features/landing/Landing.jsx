@@ -101,7 +101,7 @@ html.dark .fintra-landing{
 .fintra-landing .delta{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--em);
   background:color-mix(in srgb, var(--em) 15%, transparent); padding:2px 8px; border-radius:999px; margin-top:9px; }
 .fintra-landing .ring-wrap{ display:flex; align-items:center; gap:14px; }
-.fintra-landing .ring{ transform:rotate(-90deg); }
+.fintra-landing .ring{ transform:rotate(-90deg); border:none; outline:none; box-shadow:none; }
 .fintra-landing .ring .track{ stroke:var(--line); }
 .fintra-landing .ring .val{ stroke:var(--em); stroke-linecap:round; transition:stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1); }
 .fintra-landing .bars{ margin-top:14px; }
