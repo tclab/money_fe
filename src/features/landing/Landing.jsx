@@ -14,7 +14,7 @@ const CSS = `
   --glow:radial-gradient(60% 60% at 50% 0%, rgba(16,185,129,.12), transparent 70%);
   --shadow:0 24px 60px -28px rgba(9,9,11,.18);
   background:var(--bg); color:var(--t0);
-  font-family:-apple-system,"Segoe UI",system-ui,Roboto,sans-serif;
+  font-family:'Atlassian Sans',ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Ubuntu,"Helvetica Neue",sans-serif;
   -webkit-font-smoothing:antialiased; line-height:1.5;
   min-height:100vh; overflow-x:hidden;
   transition:background .35s ease, color .35s ease;
@@ -30,9 +30,9 @@ html.dark .fintra-landing{
 }
 
 .fintra-landing *{ box-sizing:border-box; margin:0; padding:0; }
-.fintra-landing .mono{ font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
-.fintra-landing .num{ font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
-.fintra-landing .lab{ font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; letter-spacing:.16em; text-transform:uppercase; }
+.fintra-landing .mono{ font-family:'DM Mono',ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
+.fintra-landing .num{ font-family:'DM Mono',ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+.fintra-landing .lab{ font-family:'DM Mono',ui-monospace,"SF Mono",Menlo,Consolas,monospace; letter-spacing:.16em; text-transform:uppercase; }
 .fintra-landing a{ color:inherit; text-decoration:none; }
 .fintra-landing .wrap{ width:100%; max-width:1160px; margin:0 auto; padding:0 22px; }
 
@@ -60,7 +60,7 @@ html.dark .fintra-landing{
 .fintra-landing .langpill{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:999px;
   padding:3px; gap:2px; background:var(--card); }
 .fintra-landing .langpill button{ border:0; background:transparent; color:var(--t2); font-size:11px; font-weight:700;
-  letter-spacing:.06em; padding:4px 9px; border-radius:999px; cursor:pointer; font-family:ui-monospace,Menlo,monospace; }
+  letter-spacing:.06em; padding:4px 9px; border-radius:999px; cursor:pointer; font-family:'DM Mono',ui-monospace,Menlo,monospace; }
 .fintra-landing .langpill button.on{ background:var(--em2); color:var(--emInk); }
 
 .fintra-landing .icobtn{ display:grid; place-items:center; width:38px; height:38px; border-radius:10px;
@@ -71,7 +71,7 @@ html.dark .fintra-landing{
 
 .fintra-landing section{ position:relative; }
 .fintra-landing .eyebrow{ font-size:11px; font-weight:700; color:var(--em); letter-spacing:.16em; text-transform:uppercase;
-  font-family:ui-monospace,Menlo,monospace; }
+  font-family:'DM Mono',ui-monospace,Menlo,monospace; }
 .fintra-landing h1,.fintra-landing h2,.fintra-landing h3{ letter-spacing:-.02em; line-height:1.08; }
 .fintra-landing .lead{ color:var(--t1); font-size:17px; line-height:1.6; }
 
@@ -95,7 +95,7 @@ html.dark .fintra-landing{
 .fintra-landing .mock-row{ display:grid; grid-template-columns:1.35fr 1fr; gap:12px; }
 .fintra-landing .mcard{ background:var(--card2); border:1px solid var(--line2); border-radius:13px; padding:15px; min-width:0; }
 .fintra-landing .big{ overflow-wrap:anywhere; }
-.fintra-landing .mcard .l{ font-size:9.5px; color:var(--t2); letter-spacing:.14em; text-transform:uppercase; font-family:ui-monospace,Menlo,monospace; }
+.fintra-landing .mcard .l{ font-size:9.5px; color:var(--t2); letter-spacing:.14em; text-transform:uppercase; font-family:'DM Mono',ui-monospace,Menlo,monospace; }
 .fintra-landing .big{ font-size:30px; font-weight:700; margin-top:6px; letter-spacing:-.01em; }
 .fintra-landing .usd{ font-size:11px; color:var(--t2); margin-top:3px; }
 .fintra-landing .delta{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--em);
@@ -114,7 +114,7 @@ html.dark .fintra-landing{
 .fintra-landing .barpair b{ width:14px; border-radius:4px 4px 0 0; display:block; transition:height 1s cubic-bezier(.22,1,.36,1); }
 .fintra-landing .barpair .in{ background:var(--em); }
 .fintra-landing .barpair .out{ background:color-mix(in srgb, var(--rose) 62%, transparent); }
-.fintra-landing .barcol span{ font-size:9.5px; color:var(--t2); font-family:ui-monospace,Menlo,monospace; }
+.fintra-landing .barcol span{ font-size:9.5px; color:var(--t2); font-family:'DM Mono',ui-monospace,Menlo,monospace; }
 .fintra-landing .float-chip{ position:absolute; background:var(--panel); border:1px solid var(--line); border-radius:11px;
   padding:9px 12px; box-shadow:var(--shadow); font-size:11px; display:flex; align-items:center; gap:9px; }
 .fintra-landing .float-1{ top:-16px; right:-14px; }
@@ -145,13 +145,13 @@ html.dark .fintra-landing{
 .fintra-landing .mod h3{ font-size:18px; font-weight:700; margin-bottom:8px; }
 .fintra-landing .mod p{ color:var(--t1); font-size:14px; line-height:1.55; }
 .fintra-landing .mod .kbadge{ font-size:10px; color:var(--t2); letter-spacing:.1em; text-transform:uppercase;
-  font-family:ui-monospace,Menlo,monospace; margin-top:14px; display:inline-block; }
+  font-family:'DM Mono',ui-monospace,Menlo,monospace; margin-top:14px; display:inline-block; }
 
 .fintra-landing .how{ padding:64px 0; }
 .fintra-landing .steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:8px; }
 .fintra-landing .step{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:26px; position:relative; }
 .fintra-landing .step .n{ font-size:13px; font-weight:800; color:var(--emInk); background:var(--em2); width:30px; height:30px;
-  border-radius:9px; display:grid; place-items:center; font-family:ui-monospace,Menlo,monospace; margin-bottom:16px; }
+  border-radius:9px; display:grid; place-items:center; font-family:'DM Mono',ui-monospace,Menlo,monospace; margin-bottom:16px; }
 .fintra-landing .step h3{ font-size:17px; font-weight:700; margin-bottom:8px; }
 .fintra-landing .step p{ color:var(--t1); font-size:14px; line-height:1.55; }
 
@@ -178,7 +178,7 @@ html.dark .fintra-landing{
 .fintra-landing .foot .brand{ margin-bottom:14px; }
 .fintra-landing .foot p.desc{ color:var(--t2); font-size:13px; max-width:280px; line-height:1.6; }
 .fintra-landing .foot h4{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--t2);
-  font-family:ui-monospace,Menlo,monospace; margin-bottom:14px; }
+  font-family:'DM Mono',ui-monospace,Menlo,monospace; margin-bottom:14px; }
 .fintra-landing .foot ul{ list-style:none; display:flex; flex-direction:column; gap:9px; }
 .fintra-landing .foot ul a{ color:var(--t1); font-size:13.5px; }
 .fintra-landing .foot ul a:hover{ color:var(--t0); }

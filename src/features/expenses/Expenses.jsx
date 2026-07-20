@@ -221,7 +221,7 @@ export default function Expenses() {
   );
 
   if (error) return (
-    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm font-mono">
+    <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
       {error}
     </div>
   );
@@ -253,7 +253,7 @@ export default function Expenses() {
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full font-mono text-xs">
+          <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-slate-200 dark:border-zinc-800">
                 <th className="w-8 py-2 px-3" />
@@ -296,7 +296,7 @@ export default function Expenses() {
                             </span>
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
                         <td className="py-2.5 px-3 text-center">
                           {!isPastMonth && <RowActions items={catActions} />}
                         </td>
@@ -339,7 +339,7 @@ export default function Expenses() {
                                     </span>
                                   </td>
                                   <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                                  <td className={cn("py-1.5 px-3 text-right font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
+                                  <td className={cn("py-1.5 px-3 text-right font-mono font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
                                     {fmt(e.amount, locale, currency)}
                                   </td>
                                   <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
@@ -382,7 +382,7 @@ export default function Expenses() {
                             </span>
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
                         <td className="py-2.5 px-3" />
                       </tr>
                     </tbody>
@@ -408,7 +408,7 @@ export default function Expenses() {
                               )}
                             </td>
                             <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                            <td className={cn("py-1.5 px-3 text-right font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
+                            <td className={cn("py-1.5 px-3 text-right font-mono font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
                               {fmt(e.amount, locale, currency)}
                             </td>
                             <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
@@ -426,9 +426,9 @@ export default function Expenses() {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 flex items-center justify-between bg-slate-50 dark:bg-zinc-900/50 font-mono">
+        <div className="px-6 py-4 border-t-2 border-slate-200 dark:border-zinc-700 flex items-center justify-between bg-slate-50 dark:bg-zinc-900/50">
           <div className={cn(TYPE.label)}>{t("expenses.finalBalance")}</div>
-          <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 pr-16">{fmt(grandTotal, locale, currency)}</div>
+          <div className="text-xl font-mono font-bold text-slate-900 dark:text-zinc-100 pr-16">{fmt(grandTotal, locale, currency)}</div>
         </div>
       </div>
 
@@ -441,7 +441,7 @@ export default function Expenses() {
         </>}
       >
         <div className="mb-2">
-          <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
           <input
             type="text"
             value={newCategory ?? ""}
@@ -483,7 +483,7 @@ export default function Expenses() {
       >
         {editingCategory && (
           <div className="mb-2">
-            <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">Name</label>
             <input
               type="text"
               value={editingCategory.name}
@@ -536,7 +536,7 @@ export default function Expenses() {
         {newExpense && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
               <input
                 type="text"
                 value={newExpense.name}
@@ -547,7 +547,7 @@ export default function Expenses() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
               <AmountInput
                 value={newExpense.amount}
                 onChange={(v) => setNewExpense((p) => ({ ...p, amount: v }))}
@@ -556,7 +556,7 @@ export default function Expenses() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
               <select
                 value={newExpense.category_id ?? ""}
                 onChange={(e) => setNewExpense((p) => ({ ...p, category_id: e.target.value }))}
@@ -581,7 +581,7 @@ export default function Expenses() {
         {editing && (
           <div className="space-y-3 mb-2">
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.expense")}</label>
               <input
                 type="text"
                 value={editing.name}
@@ -592,7 +592,7 @@ export default function Expenses() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("col.value")}</label>
               <AmountInput
                 value={editing.amount}
                 onChange={(v) => setEditing((p) => ({ ...p, amount: v }))}
@@ -601,7 +601,7 @@ export default function Expenses() {
               />
             </div>
             <div>
-              <label className="block font-mono text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">{t("transactions.category")}</label>
               <select
                 value={editing.category_id ?? ""}
                 onChange={(e) => setEditing((p) => ({ ...p, category_id: e.target.value }))}

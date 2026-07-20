@@ -32,14 +32,14 @@ export default function ResetPassword() {
   };
 
   const inputCls =
-    "w-full px-3 py-2 pr-10 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-mono text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-emerald-500";
+    "w-full px-3 py-2 pr-10 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-emerald-500";
 
   const toggleCls =
     "absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition";
 
   const field = (label, value, onChange) => (
     <div>
-      <label className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{label}</label>
+      <label className="text-[10px] tracking-widest text-slate-400 dark:text-zinc-500 uppercase">{label}</label>
       <div className="relative">
         <input type={show ? "text" : "password"} autoComplete="new-password" required value={value}
           onChange={(e) => onChange(e.target.value)} className={inputCls} />
@@ -58,7 +58,7 @@ export default function ResetPassword() {
           <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center">
             <Wallet size={16} className="text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h1 className="font-mono font-bold text-slate-800 dark:text-zinc-100">
+          <h1 className="font-bold text-slate-800 dark:text-zinc-100">
             {t("auth.resetTitle")}
           </h1>
         </div>
@@ -68,7 +68,7 @@ export default function ResetPassword() {
           {field(t("auth.confirmPassword"), confirm, setConfirm)}
         </div>
 
-        {error && <div className="text-xs font-mono text-rose-600 dark:text-rose-400">{error}</div>}
+        {error && <div className="text-xs text-rose-600 dark:text-rose-400">{error}</div>}
 
         <Btn variant="primary" size="md" className="w-full justify-center" disabled={busy}>
           {t("auth.updatePassword")}

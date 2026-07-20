@@ -46,7 +46,7 @@ export default function App() {
       )}>
       {tab === id && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-emerald-500 rounded-r-full" />}
       <Icon size={18} className="shrink-0" />
-      {!collapsed && <span className="font-mono text-sm font-medium">{label}</span>}
+      {!collapsed && <span className="text-sm font-medium">{label}</span>}
     </button>
   );
 
@@ -64,7 +64,7 @@ export default function App() {
         )}>
           <Wallet size={collapsed ? 20 : 18} className="text-emerald-600 dark:text-emerald-400" />
         </div>
-        {!collapsed && <span className="font-mono font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("expenses.brand")}</span>}
+        {!collapsed && <span className="font-bold text-slate-800 dark:text-zinc-100 text-sm tracking-wide">{t("expenses.brand")}</span>}
       </button>
 
       <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
@@ -94,7 +94,7 @@ export default function App() {
         <button onClick={() => setOpen((v) => !v)} title={t("prefs.language")}
           className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
           <Globe size={14} className="shrink-0" />
-          <span className="font-mono text-xs font-semibold">{current.short}</span>
+          <span className="text-xs font-semibold">{current.short}</span>
           <ChevronDown size={13} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
         </button>
         <AnimatePresence>
@@ -103,7 +103,7 @@ export default function App() {
               className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
               {LANGS.map((l) => (
                 <button key={l.code} onClick={() => { setLang(l.code); setOpen(false); }}
-                  className={cn("w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-mono font-medium transition-colors",
+                  className={cn("w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium transition-colors",
                     lang === l.code
                       ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
                       : "text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
@@ -152,8 +152,8 @@ export default function App() {
       <div className="relative" ref={ref}>
         <button onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
-          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-mono font-bold shrink-0">{userInitial}</span>
-          <span className="hidden sm:block max-w-[140px] truncate font-mono text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
+          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-bold shrink-0">{userInitial}</span>
+          <span className="hidden sm:block max-w-[140px] truncate text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
           <ChevronDown size={14} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
         </button>
         <AnimatePresence>
@@ -161,16 +161,16 @@ export default function App() {
             <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
               className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
               <div className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800">
-                <div className="font-mono text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
-                {user?.email && <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
+                <div className="text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
+                {user?.email && <div className="text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
               </div>
               <button onClick={() => { setOpen(false); setTab("profile"); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
                 <UserRound size={14} className="shrink-0" /> {t("nav.profile")}
               </button>
               <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
               <button onClick={() => { setOpen(false); signOut(); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
                 <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
               </button>
             </motion.div>
@@ -209,7 +209,7 @@ export default function App() {
           <div className="w-6 h-6 rounded-md bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 flex items-center justify-center">
             <Wallet size={12} className="text-emerald-600 dark:text-emerald-400" />
           </div>
-          <span className="font-mono font-bold text-slate-800 dark:text-zinc-200 text-sm">
+          <span className="font-bold text-slate-800 dark:text-zinc-200 text-sm">
             {tab === "dashboard" ? t("nav.dashboard") : tab === "income" ? t("nav.income") : tab === "transactions" ? t("nav.transactions") : tab === "splitter" ? t("nav.splitter") : tab === "debtKiller" ? t("nav.debtKiller") : tab === "profile" ? t("nav.profile") : t("nav.expenses")}
           </span>
         </div>
@@ -285,7 +285,7 @@ export default function App() {
                 : "text-slate-400 dark:text-zinc-500"
             )}>
             <Icon size={19} className="shrink-0" />
-            <span className="font-mono text-[9px] font-medium tracking-tight leading-none">{label}</span>
+            <span className="text-[9px] font-medium tracking-tight leading-none">{label}</span>
           </button>
         ))}
       </nav>

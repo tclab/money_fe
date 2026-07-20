@@ -14,9 +14,9 @@ export default function Profile() {
   const userInitial = userName.charAt(0).toUpperCase();
 
   const inputCls =
-    "w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-mono text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-emerald-500 disabled:bg-slate-50 dark:disabled:bg-zinc-950 disabled:text-slate-400 dark:disabled:text-zinc-500 disabled:cursor-not-allowed";
+    "w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-emerald-500 disabled:bg-slate-50 dark:disabled:bg-zinc-950 disabled:text-slate-400 dark:disabled:text-zinc-500 disabled:cursor-not-allowed";
   const labelCls =
-    "text-[10px] font-mono tracking-widest text-slate-400 dark:text-zinc-500 uppercase";
+    "text-[10px] tracking-widest text-slate-400 dark:text-zinc-500 uppercase";
   const cardCls =
     "rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 space-y-5";
   const toggleCls =
@@ -25,7 +25,7 @@ export default function Profile() {
   const tabBtn = (id, label, Icon) => (
     <button type="button" onClick={() => setTab(id)}
       className={cn(
-        "flex items-center gap-2 pb-2.5 text-sm font-mono border-b-2 -mb-px transition-colors",
+        "flex items-center gap-2 pb-2.5 text-sm border-b-2 -mb-px transition-colors",
         tab === id
           ? "text-emerald-600 dark:text-emerald-400 border-emerald-500 font-semibold"
           : "text-slate-400 dark:text-zinc-500 border-transparent hover:text-slate-600 dark:hover:text-zinc-300"
@@ -38,15 +38,15 @@ export default function Profile() {
     <div className="animate-fade-in space-y-5 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <span className="grid place-items-center w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-xl font-mono font-bold shrink-0">
+        <span className="grid place-items-center w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-xl font-bold shrink-0">
           {userInitial}
         </span>
         <div className="space-y-1">
           <div className={labelCls}>{t("profile.eyebrow")}</div>
-          <h1 className="text-2xl font-extrabold font-mono tracking-tight leading-none text-slate-900 dark:text-zinc-50">
+          <h1 className="text-2xl font-extrabold tracking-tight leading-none text-slate-900 dark:text-zinc-50">
             {t("profile.title")}
           </h1>
-          {user?.email && <div className="font-mono text-xs text-slate-400 dark:text-zinc-500">{user.email}</div>}
+          {user?.email && <div className="text-xs text-slate-400 dark:text-zinc-500">{user.email}</div>}
         </div>
       </div>
 
@@ -96,7 +96,7 @@ function AccountTab({ user, updateProfile, t, inputCls, labelCls, cardCls }) {
           <input type="email" value={user?.email || ""} disabled className={cn(inputCls, "pr-10")} />
           <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 dark:text-zinc-600" />
         </div>
-        <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-600">{t("profile.emailLocked")}</div>
+        <div className="text-[11px] text-slate-400 dark:text-zinc-600">{t("profile.emailLocked")}</div>
       </div>
 
       <div className="space-y-1.5">
@@ -105,14 +105,14 @@ function AccountTab({ user, updateProfile, t, inputCls, labelCls, cardCls }) {
           onChange={(e) => setName(e.target.value)} className={inputCls} />
       </div>
 
-      {error && <div className="text-xs font-mono text-rose-600 dark:text-rose-400">{error}</div>}
+      {error && <div className="text-xs text-rose-600 dark:text-rose-400">{error}</div>}
 
       <div className="flex items-center gap-3">
         <Btn variant="primary" size="md" disabled={busy}>
           <Check size={15} /> {busy ? t("profile.saving") : t("profile.save")}
         </Btn>
         {saved && (
-          <span className="flex items-center gap-1.5 text-xs font-mono text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 size={14} /> {t("profile.saved")}
           </span>
         )}
@@ -172,15 +172,15 @@ function SecurityTab({ updatePassword, t, inputCls, labelCls, cardCls, toggleCls
   return (
     <form onSubmit={submit} className={cardCls}>
       <div className="space-y-1">
-        <div className="text-sm font-mono font-semibold text-slate-800 dark:text-zinc-100">{t("profile.changePassword")}</div>
-        <div className="font-mono text-xs text-slate-400 dark:text-zinc-500">{t("profile.changePasswordHint")}</div>
+        <div className="text-sm font-semibold text-slate-800 dark:text-zinc-100">{t("profile.changePassword")}</div>
+        <div className="text-xs text-slate-400 dark:text-zinc-500">{t("profile.changePasswordHint")}</div>
       </div>
 
       {field(t("auth.newPassword"), password, setPassword)}
       {field(t("auth.confirmPassword"), confirm, setConfirm)}
 
       {error && (
-        <div className="flex items-center gap-1.5 text-xs font-mono text-rose-600 dark:text-rose-400">
+        <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400">
           <AlertCircle size={14} /> {error}
         </div>
       )}
@@ -190,7 +190,7 @@ function SecurityTab({ updatePassword, t, inputCls, labelCls, cardCls, toggleCls
           <Check size={15} /> {t("auth.updatePassword")}
         </Btn>
         {ok && (
-          <span className="flex items-center gap-1.5 text-xs font-mono text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 size={14} /> {t("profile.passwordChanged")}
           </span>
         )}

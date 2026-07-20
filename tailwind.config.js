@@ -5,7 +5,16 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["'Outfit'", "sans-serif"],
+        sans: [
+          "'Atlassian Sans'",
+          "ui-sans-serif",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "'Segoe UI'",
+          "Ubuntu",
+          "'Helvetica Neue'",
+          "sans-serif",
+        ],
         mono: ["'DM Mono'", "monospace"],
       },
       colors: {
