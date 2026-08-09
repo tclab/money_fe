@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, Cloud } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
+import { useToast } from "../../components/Toast.jsx";
 import { cn, toMonthKey, fmt, fmtMonth } from "../../lib/utils.js";
 import { TYPE } from "../../lib/tokens.js";
 import {
@@ -76,6 +77,7 @@ function SplitterColumn({ title, total, color, rows, labelKey, valueKey, onEdit,
 
 export default function Splitter() {
   const { t, locale, currency, lang, theme } = useI18n();
+  const { showError } = useToast();
   const today = new Date();
   const [viewDate, setViewDate] = useState(today);
   const monthKey = toMonthKey(viewDate);
@@ -107,7 +109,7 @@ export default function Splitter() {
         setPeople(peopleData.length > 0 ? peopleData : []);
         setAllPeople(allPeopleData);
       } catch (e) {
-        console.error("Failed to load splitter data:", e);
+        showError(e);
         setItems([]);
         setPeople([]);
         setAllPeople([]);
@@ -151,7 +153,7 @@ export default function Splitter() {
       const created = await createSplitter(type, label || t("splitter.newRow"), value, position, type === "discount" ? person_id : null, monthKey);
       setItems((xs) => [...xs, created]);
     } catch (e) {
-      console.error("Failed to create splitter:", e);
+      showError(e);
     }
   };
 
@@ -170,7 +172,7 @@ export default function Splitter() {
       if (type === "discount") patch.person_id = person_id;
       await updateSplitter(id, patch);
     } catch (e) {
-      console.error("Failed to update splitter:", e);
+      showError(e);
     }
   };
 
@@ -182,7 +184,7 @@ export default function Splitter() {
     try {
       await deleteSplitter(id);
     } catch (e) {
-      console.error("Failed to delete splitter:", e);
+      showError(e);
     }
   };
 
@@ -208,7 +210,7 @@ export default function Splitter() {
     try {
       await addPersonToFeature(person.id, "splitter");
     } catch (e) {
-      console.error("Failed to associate person:", e);
+      showError(e);
     }
   };
 
@@ -223,7 +225,7 @@ export default function Splitter() {
       setPeople((ps) => [...ps, created]);
       setAllPeople((ps) => [...ps, created]);
     } catch (e) {
-      console.error("Failed to create person:", e);
+      showError(e);
     }
   };
 
@@ -240,7 +242,7 @@ export default function Splitter() {
     try {
       await updatePerson(id, { name, color, share });
     } catch (e) {
-      console.error("Failed to update person:", e);
+      showError(e);
     }
   };
 
@@ -252,7 +254,7 @@ export default function Splitter() {
     try {
       await removePersonFromFeature(id, "splitter");
     } catch (e) {
-      console.error("Failed to remove person from splitter:", e);
+      showError(e);
     }
   };
 
@@ -296,7 +298,7 @@ export default function Splitter() {
         }
       }, "image/png");
     } catch (e) {
-      console.error("Capture failed:", e);
+      showError(e);
       setCaptureStatus("idle");
     }
   };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Cloud, TrendingUp } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
+import { errorKey } from "../../lib/apiError.js";
 import { cn, toMonthKey, fmt } from "../../lib/utils.js";
 import { TYPE } from "../../lib/tokens.js";
 import { fetchIncome, fetchExpenses, fetchCategories, fetchTransactions } from "../../api.js";
@@ -38,6 +39,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     setLoading(true);
+    // Clear the previous month's failure, else one bad load sticks forever.
+    setError(null);
     Promise.all([
       fetchIncome(null, monthKey),
       fetchExpenses(null, monthKey),
@@ -54,7 +57,7 @@ export default function Dashboard() {
       setTransactionCats(txCats);
       setLoading(false);
     }).catch((e) => {
-      setError(e.message);
+      setError(errorKey(e));
       setLoading(false);
     });
   }, [monthKey]);
@@ -92,7 +95,7 @@ export default function Dashboard() {
 
   if (error) return (
     <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
-      {error}
+      {t(error)}
     </div>
   );
 

@@ -2,6 +2,8 @@ import { useState, useEffect, Fragment } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Plus, Trash2, ChevronDown, Cloud, GripVertical, Pencil, ArrowUp, ArrowDown, Tags } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
+import { errorKey } from "../../lib/apiError.js";
+import { useToast } from "../../components/Toast.jsx";
 import { cn, toMonthKey, fmt } from "../../lib/utils.js";
 import {
   fetchCategories, fetchExpenses, upsertExpenseStatus, updateExpense,
@@ -19,6 +21,7 @@ import { SECTION_COLORS, TONE, TYPE } from "../../lib/tokens.js";
 
 export default function Expenses() {
   const { t, locale, currency } = useI18n();
+  const { showError } = useToast();
   const today = new Date();
   const [categories, setCategories] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -41,6 +44,8 @@ export default function Expenses() {
 
   useEffect(() => {
     setLoading(true);
+    // Clear the previous month's failure, else one bad load sticks forever.
+    setError(null);
     Promise.all([
       fetchCategories("expense", isPastMonth),
       fetchExpenses(null, monthKey),
@@ -49,7 +54,7 @@ export default function Expenses() {
       setExpenses(exps);
       setLoading(false);
     }).catch((e) => {
-      setError(e.message);
+      setError(errorKey(e));
       setLoading(false);
     });
   }, [monthKey]);
@@ -74,7 +79,8 @@ export default function Expenses() {
     setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
     try {
       await upsertExpenseStatus(id, monthKey, { status: newStatus });
-    } catch {
+    } catch (e) {
+      showError(e);
       setExpenses((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
     }
   };
@@ -88,7 +94,7 @@ export default function Expenses() {
     try {
       await deleteExpenseApi(id);
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -111,7 +117,8 @@ export default function Expenses() {
     setCategories(updated);
     try {
       await reorderCategories("expense", updated.map((c) => ({ id: c.id, position: c.position })));
-    } catch {
+    } catch (e) {
+      showError(e);
       setCategories(categories);
     }
   };
@@ -131,7 +138,8 @@ export default function Expenses() {
     setEditCategoryErr(false);
     try {
       await updateCategory("expense", editingCategory.id, name);
-    } catch {
+    } catch (e) {
+      showError(e);
       setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name: prev.name } : c));
     }
   };
@@ -145,7 +153,7 @@ export default function Expenses() {
     try {
       await deleteCategoryApi("expense", id);
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -159,7 +167,7 @@ export default function Expenses() {
       const sec = await createCategory("expense", name);
       setCategories((xs) => xs.some((c) => c.id === sec.id) ? xs : [...xs, sec]);
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -173,7 +181,7 @@ export default function Expenses() {
       const exp = await createExpense(draft.category_id || null, draft.name, draft.amount);
       setExpenses((xs) => [...xs, exp]);
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -188,7 +196,8 @@ export default function Expenses() {
         updateExpense(editing.id, { expense: editing.name, category_id: categoryId }),
         upsertExpenseStatus(editing.id, monthKey, { value: editing.amount }),
       ]);
-    } catch {
+    } catch (e) {
+      showError(e);
       setExpenses((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount, category_id: prev.category_id } : e));
     }
   };
@@ -210,7 +219,7 @@ export default function Expenses() {
     try {
       await reorderExpenses(updated.map((e) => ({ id: e.id, position: e.position })));
     } catch (err) {
-      console.error(err);
+      showError(err);
     }
   };
 
@@ -222,7 +231,7 @@ export default function Expenses() {
 
   if (error) return (
     <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
-      {error}
+      {t(error)}
     </div>
   );
 

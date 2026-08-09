@@ -1,6 +1,8 @@
 import { useState, useEffect, Fragment } from "react";
 import { Plus, Trash2, Receipt, Pencil, Tags } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
+import { errorKey } from "../../lib/apiError.js";
+import { useToast } from "../../components/Toast.jsx";
 import { cn, toMonthKey, toDateKey, fmt, catColor } from "../../lib/utils.js";
 import {
   fetchCategories, fetchTransactions, createTransaction, updateTransaction,
@@ -30,6 +32,7 @@ const Dot = ({ id }) => (
 
 export default function Transactions() {
   const { t, locale, currency, lang } = useI18n();
+  const { showError } = useToast();
   const today = new Date();
   const todayKey = toDateKey(today);
 
@@ -52,6 +55,8 @@ export default function Transactions() {
 
   useEffect(() => {
     setLoading(true);
+    // Clear the previous month's failure, else one bad load sticks forever.
+    setError(null);
     Promise.all([
       fetchCategories("transaction"),
       fetchTransactions(monthKey),
@@ -60,7 +65,7 @@ export default function Transactions() {
       setTransactions(txs);
       setLoading(false);
     }).catch((e) => {
-      setError(e.message);
+      setError(errorKey(e));
       setLoading(false);
     });
   }, [monthKey]);
@@ -98,7 +103,7 @@ export default function Transactions() {
       // Keep date + category for fast repeated entry; clear amount + note.
       setDraft((p) => ({ ...p, amount: 0, note: "" }));
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -118,7 +123,7 @@ export default function Transactions() {
       setCategories((xs) => xs.some((c) => c.id === cat.id) ? xs : [...xs, cat]);
       setDraft((p) => ({ ...p, category_id: cat.id }));
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -135,7 +140,8 @@ export default function Transactions() {
     setEditCategoryErr(false);
     try {
       await updateCategory("transaction", editingCategory.id, name);
-    } catch {
+    } catch (e) {
+      showError(e);
       setCategories((xs) => xs.map((c) => c.id === prev.id ? prev : c));
     }
   };
@@ -150,7 +156,7 @@ export default function Transactions() {
     try {
       await deleteCategoryApi("transaction", id);
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
@@ -168,7 +174,8 @@ export default function Transactions() {
     setEditing(null);
     try {
       await updateTransaction(prev.id, patch);
-    } catch {
+    } catch (e) {
+      showError(e);
       setTransactions((xs) => xs.map((e) => e.id === prev.id ? prev : e).sort(sortRows));
     }
   };
@@ -181,13 +188,13 @@ export default function Transactions() {
     try {
       await deleteTransactionApi(id);
     } catch (e) {
-      console.error(e);
+      showError(e);
     }
   };
 
   if (error) return (
     <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
-      {error}
+      {t(error)}
     </div>
   );
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Plus, Trash2, Cloud, Pencil, Loader2, Archive, ArchiveRestore, X } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
+import { useToast } from "../../components/Toast.jsx";
+import { ApiError } from "../../lib/apiError.js";
 import { cn, fmt } from "../../lib/utils.js";
 import { allocate } from "../../lib/debtAllocate.js";
 import { TYPE } from "../../lib/tokens.js";
@@ -18,6 +20,7 @@ import AmountInput from "../../components/AmountInput.jsx";
 
 export default function DebtKiller() {
   const { t, locale, currency, theme } = useI18n();
+  const { showError } = useToast();
   const [debts, setDebts] = useState([]);
   const [availablePersons, setAvailablePersons] = useState([]);
   const [debtPersonFilter, setDebtPersonFilter] = useState(null);
@@ -74,16 +77,17 @@ export default function DebtKiller() {
         setPeople(p);
         applyMeta(d, "owed_to_me");
       })
+      .catch(showError)
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     setDebtPersonFilter(null);
-    fetchDebts().then(all => applyMeta(all));
+    fetchDebts().then(all => applyMeta(all)).catch(showError);
   }, [debtTab]);
 
   useEffect(() => {
-    fetchDebts({ personId: debtPersonFilter || undefined }).then(setDebts);
+    fetchDebts({ personId: debtPersonFilter || undefined }).then(setDebts).catch(showError);
   }, [debtPersonFilter]);
 
   useEffect(() => {
@@ -125,7 +129,7 @@ export default function DebtKiller() {
           setReportTarget(null);
         }, "image/png");
       } catch (e) {
-        console.error("Report capture failed:", e);
+        showError(e);
         setReportTarget(null);
         setReportStatus("idle");
       }
@@ -192,22 +196,27 @@ export default function DebtKiller() {
     if (form.person_id === "__new__" && !form.newPersonName.trim()) errs.newPersonName = t("error.required");
     if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
     setFormErrors({});
-    let personId = form.person_id || null;
-    if (form.person_id === "__new__" && form.newPersonName.trim()) {
-      const created = await createPerson(form.newPersonName.trim(), "#94a3b8", 50);
-      personId = created.id;
-      setPeople(prev => [...prev, created]);
+    // The form stays open until the write lands, so a failure keeps the input.
+    try {
+      let personId = form.person_id || null;
+      if (form.person_id === "__new__" && form.newPersonName.trim()) {
+        const created = await createPerson(form.newPersonName.trim(), "#94a3b8", 50);
+        personId = created.id;
+        setPeople(prev => [...prev, created]);
+      }
+      await createDebt({
+        description: form.description,
+        amount: parseFloat(form.amount),
+        type: form.type,
+        person_id: personId,
+        due_date: form.due_date || null,
+      });
+      setForm({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
+      setShowForm(false);
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      showError(err);
     }
-    await createDebt({
-      description: form.description,
-      amount: parseFloat(form.amount),
-      type: form.type,
-      person_id: personId,
-      due_date: form.due_date || null,
-    });
-    setForm({ description: "", amount: "", type: "i_owe", person_id: "", newPersonName: "", due_date: "" });
-    setShowForm(false);
-    await refreshDebts(debtPersonFilter);
   }
 
   async function handleAddPayment(e, debtId) {
@@ -223,27 +232,50 @@ export default function DebtKiller() {
       }
     }
     setPaymentError("");
+    const draft = paymentForm;
     setAddingPayment(null);
     setPaymentForm({ amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
     setSavingPayments(prev => new Set(prev).add(debtId));
-    await createDebtPayment(debtId, {
-      amount: parseFloat(paymentForm.amount),
-      date: paymentForm.date,
-      note: paymentForm.note || undefined,
-    });
-    await refreshDebts(debtPersonFilter);
-    setSavingPayments(prev => { const s = new Set(prev); s.delete(debtId); return s; });
+    try {
+      await createDebtPayment(debtId, {
+        amount: parseFloat(draft.amount),
+        date: draft.date,
+        note: draft.note || undefined,
+      });
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      // The client pre-check above uses possibly stale balances, e.g. a second
+      // open tab. The server verdict reopens the form with the input intact.
+      setAddingPayment(debtId);
+      setPaymentForm(draft);
+      if (err instanceof ApiError && err.code === "BALANCE_EXCEEDED") {
+        setPaymentError(t("debt.paymentExceedsRemainingGeneric"));
+      } else {
+        showError(err);
+      }
+    } finally {
+      // Always clear the spinner; a failed write must not leave it spinning.
+      setSavingPayments(prev => { const s = new Set(prev); s.delete(debtId); return s; });
+    }
   }
 
   async function handleDeletePayment(debtId, paymentId) {
-    await deleteDebtPayment(debtId, paymentId);
-    await refreshDebts(debtPersonFilter);
+    try {
+      await deleteDebtPayment(debtId, paymentId);
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      showError(err);
+    }
   }
 
   async function handleDeleteDebt(debtId) {
-    await deleteDebt(debtId);
-    setConfirmDeleteDebt(null);
-    await refreshDebts(debtPersonFilter);
+    try {
+      await deleteDebt(debtId);
+      setConfirmDeleteDebt(null);
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      showError(err);
+    }
   }
 
   async function handleUpdateDebt() {
@@ -254,14 +286,22 @@ export default function DebtKiller() {
       person_id: editingDebt.person_id || null,
       due_date: editingDebt.due_date || null,
     };
-    setEditingDebt(null);
-    await updateDebt(editingDebt.id, patch);
-    await refreshDebts(debtPersonFilter);
+    try {
+      await updateDebt(editingDebt.id, patch);
+      setEditingDebt(null);
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      showError(err);
+    }
   }
 
   async function handleArchiveDebt(debt) {
-    await updateDebt(debt.id, { archived: !debt.archived });
-    await refreshDebts(debtPersonFilter);
+    try {
+      await updateDebt(debt.id, { archived: !debt.archived });
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      showError(err);
+    }
   }
 
   function handleReport(mode = "image") {
@@ -288,12 +328,30 @@ export default function DebtKiller() {
       setBulkError(t("debt.paymentExceedsRemaining").replace("{remaining}", fmt(totalRemaining, locale, currency)));
       return;
     }
+    const draft = bulkForm;
     const { date, note, person_id } = bulkForm;
     closeBulkForm();
-    setSavingPayments(new Set(active.map(x => x.debt.id)));
-    await distributePayment({ type: debtTab, amount: parsedAmount, date, note: note || undefined, person_id: person_id || undefined });
-    await refreshDebts(debtPersonFilter);
-    setSavingPayments(new Set());
+    const bulkIds = active.map(x => x.debt.id);
+    setSavingPayments(prev => new Set([...prev, ...bulkIds]));
+    try {
+      await distributePayment({ type: debtTab, amount: parsedAmount, date, note: note || undefined, person_id: person_id || undefined });
+      await refreshDebts(debtPersonFilter);
+    } catch (err) {
+      setShowBulkForm(true);
+      setBulkForm(draft);
+      if (err instanceof ApiError && err.code === "BALANCE_EXCEEDED") {
+        setBulkError(t("debt.paymentExceedsRemainingGeneric"));
+      } else {
+        showError(err);
+      }
+    } finally {
+      // Clear only this distribution's ids; a single payment may still be saving.
+      setSavingPayments(prev => {
+        const s = new Set(prev);
+        for (const id of bulkIds) s.delete(id);
+        return s;
+      });
+    }
   }
 
   if (loading) return (

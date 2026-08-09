@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient.js";
+import { ApiError, apiErrorFromResponse } from "./lib/apiError.js";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -22,8 +23,10 @@ function mapIncome(e) {
   };
 }
 
-// Centralized fetch: attaches the Supabase access token to every request and
-// signs the user out on a 401 so the app falls back to the login screen.
+// Centralized fetch: attaches the Supabase access token to every request, signs
+// the user out on a 401 so the app falls back to the login screen, and THROWS an
+// ApiError on any non-ok response. Callers never check `res.ok`; they either get
+// a successful Response or an ApiError to surface as a toast.
 async function authFetch(path, { method = "GET", body, headers } = {}) {
   const { data: { session } } = await supabase.auth.getSession();
   const finalHeaders = { ...(headers || {}) };
@@ -33,15 +36,23 @@ async function authFetch(path, { method = "GET", body, headers } = {}) {
   if (body !== undefined) {
     finalHeaders["Content-Type"] = "application/json";
   }
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: finalHeaders,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers: finalHeaders,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (cause) {
+    // fetch itself rejected: offline, DNS, CORS, a dead server. There is no
+    // response and so no envelope, so name it UPSTREAM ourselves.
+    throw new ApiError({ code: "UPSTREAM", message: cause?.message ?? "" });
+  }
   if (res.status === 401) {
     await supabase.auth.signOut();
-    throw new Error("Unauthorized");
+    throw new ApiError({ code: "UNAUTHORIZED", status: 401 });
   }
+  if (!res.ok) throw await apiErrorFromResponse(res);
   return res;
 }
 
@@ -51,7 +62,6 @@ export async function fetchCategories(kind, includeDeleted = false) {
   const params = new URLSearchParams();
   if (includeDeleted) params.set("include_deleted", "true");
   const res = await authFetch(`/categories/${kind}${params.size ? "?" + params : ""}`);
-  if (!res.ok) throw new Error("Failed to fetch categories");
   const data = await res.json();
   return data.categories ?? data;
 }
@@ -61,7 +71,6 @@ export async function fetchExpenses(categoryId, month) {
   if (categoryId) params.set("category_id", categoryId);
   if (month) params.set("month", month);
   const res = await authFetch(`/expenses${params.size ? "?" + params : ""}`);
-  if (!res.ok) throw new Error("Failed to fetch expenses");
   const data = await res.json();
   return (data.expenses ?? data).map(mapExpense);
 }
@@ -71,13 +80,11 @@ export async function upsertExpenseStatus(expenseId, month, { status, value } = 
   if (status !== undefined) body.status = status;
   if (value !== undefined) body.value = value;
   const res = await authFetch("/expense-status", { method: "PUT", body });
-  if (!res.ok) throw new Error("Failed to update expense status");
   return res.json();
 }
 
 export async function createCategory(kind, name) {
   const res = await authFetch(`/categories/${kind}`, { method: "POST", body: { name } });
-  if (!res.ok) throw new Error("Failed to create category");
   return res.json();
 }
 
@@ -86,33 +93,27 @@ export async function createExpense(categoryId, name, amount) {
     method: "POST",
     body: { category_id: categoryId, expense: name, value: amount },
   });
-  if (!res.ok) throw new Error("Failed to create expense");
   return mapExpense(await res.json());
 }
 
 export async function deleteExpense(id) {
-  const res = await authFetch(`/expenses/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete expense");
+  await authFetch(`/expenses/${id}`, { method: "DELETE" });
 }
 
 export async function reorderExpenses(items) {
-  const res = await authFetch("/expenses/reorder", { method: "PUT", body: { items } });
-  if (!res.ok) throw new Error("Failed to reorder expenses");
+  await authFetch("/expenses/reorder", { method: "PUT", body: { items } });
 }
 
 export async function deleteCategory(kind, id) {
-  const res = await authFetch(`/categories/${kind}/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete category");
+  await authFetch(`/categories/${kind}/${id}`, { method: "DELETE" });
 }
 
 export async function reorderCategories(kind, items) {
-  const res = await authFetch(`/categories/${kind}/reorder`, { method: "PUT", body: { items } });
-  if (!res.ok) throw new Error("Failed to reorder categories");
+  await authFetch(`/categories/${kind}/reorder`, { method: "PUT", body: { items } });
 }
 
 export async function updateCategory(kind, id, name) {
   const res = await authFetch(`/categories/${kind}/${id}`, { method: "PUT", body: { name } });
-  if (!res.ok) throw new Error("Failed to update category");
   return res.json();
 }
 
@@ -123,7 +124,6 @@ export async function updateExpense(id, patch) {
   if (patch.status !== undefined) body.status = patch.status;
   if (patch.category_id !== undefined) body.category_id = patch.category_id;
   const res = await authFetch(`/expenses/${id}`, { method: "PUT", body });
-  if (!res.ok) throw new Error("Failed to update expense");
   return mapExpense(await res.json());
 }
 
@@ -134,7 +134,6 @@ export async function fetchIncome(categoryId, month) {
   if (categoryId) params.set("category_id", categoryId);
   if (month) params.set("month", month);
   const res = await authFetch(`/income${params.size ? "?" + params : ""}`);
-  if (!res.ok) throw new Error("Failed to fetch income");
   const data = await res.json();
   return (data.income ?? data).map(mapIncome);
 }
@@ -144,7 +143,6 @@ export async function createIncome(categoryId, name, amount) {
     method: "POST",
     body: { category_id: categoryId, income: name, value: amount },
   });
-  if (!res.ok) throw new Error("Failed to create income");
   return mapIncome(await res.json());
 }
 
@@ -155,18 +153,15 @@ export async function updateIncome(id, patch) {
   if (patch.status !== undefined) body.status = patch.status;
   if (patch.category_id !== undefined) body.category_id = patch.category_id;
   const res = await authFetch(`/income/${id}`, { method: "PUT", body });
-  if (!res.ok) throw new Error("Failed to update income");
   return mapIncome(await res.json());
 }
 
 export async function deleteIncome(id) {
-  const res = await authFetch(`/income/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete income");
+  await authFetch(`/income/${id}`, { method: "DELETE" });
 }
 
 export async function reorderIncome(items) {
-  const res = await authFetch("/income/reorder", { method: "PUT", body: { items } });
-  if (!res.ok) throw new Error("Failed to reorder income");
+  await authFetch("/income/reorder", { method: "PUT", body: { items } });
 }
 
 export async function upsertIncomeStatus(incomeId, month, { status, value } = {}) {
@@ -174,7 +169,6 @@ export async function upsertIncomeStatus(incomeId, month, { status, value } = {}
   if (status !== undefined) body.status = status;
   if (value !== undefined) body.value = value;
   const res = await authFetch("/income-status", { method: "PUT", body });
-  if (!res.ok) throw new Error("Failed to update income status");
   return res.json();
 }
 
@@ -185,7 +179,6 @@ export async function fetchTransactions(month, categoryId) {
   if (categoryId) params.set("category_id", categoryId);
   if (month) params.set("month", month);
   const res = await authFetch(`/transactions${params.size ? "?" + params : ""}`);
-  if (!res.ok) throw new Error("Failed to fetch transactions");
   const data = await res.json();
   return data.transactions ?? data;
 }
@@ -195,19 +188,16 @@ export async function createTransaction({ date, amount, category_id, note, metho
   if (note !== undefined) body.note = note;
   if (method !== undefined) body.method = method;
   const res = await authFetch("/transactions", { method: "POST", body });
-  if (!res.ok) throw new Error("Failed to create transaction");
   return res.json();
 }
 
 export async function updateTransaction(id, patch) {
   const res = await authFetch(`/transactions/${id}`, { method: "PUT", body: patch });
-  if (!res.ok) throw new Error("Failed to update transaction");
   return res.json();
 }
 
 export async function deleteTransaction(id) {
-  const res = await authFetch(`/transactions/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete transaction");
+  await authFetch(`/transactions/${id}`, { method: "DELETE" });
 }
 
 // ─── SPLITTER ─────────────────────────────────────────────────────────────────
@@ -216,7 +206,6 @@ export async function fetchSplitters(month) {
   const params = new URLSearchParams();
   if (month) params.set("month", month);
   const res = await authFetch(`/splitter/items${params.size ? "?" + params : ""}`);
-  if (!res.ok) throw new Error("Failed to fetch splitters");
   const data = await res.json();
   return data.splitters ?? [];
 }
@@ -225,19 +214,16 @@ export async function createSplitter(type, label, value, position = 0, person_id
   const body = { month, type, label, value, position };
   if (person_id) body.person_id = person_id;
   const res = await authFetch("/splitter/items", { method: "POST", body });
-  if (!res.ok) throw new Error("Failed to create splitter");
   return res.json();
 }
 
 export async function updateSplitter(id, patch) {
   const res = await authFetch(`/splitter/items/${id}`, { method: "PUT", body: patch });
-  if (!res.ok) throw new Error("Failed to update splitter");
   return res.json();
 }
 
 export async function deleteSplitter(id) {
-  const res = await authFetch(`/splitter/items/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete splitter");
+  await authFetch(`/splitter/items/${id}`, { method: "DELETE" });
 }
 
 // ─── PEOPLE ───────────────────────────────────────────────────────────────────
@@ -251,7 +237,6 @@ export async function fetchPeople(feature = null) {
     path += `?${params}`;
   }
   const res = await authFetch(path);
-  if (!res.ok) throw new Error("Failed to fetch people");
   const data = await res.json();
   return data.people ?? [];
 }
@@ -261,29 +246,24 @@ export async function createPerson(name, color, share, position = 0) {
     method: "POST",
     body: { name, color, share, position },
   });
-  if (!res.ok) throw new Error("Failed to create person");
   return res.json();
 }
 
 export async function updatePerson(id, patch) {
   const res = await authFetch(`/people/${id}`, { method: "PUT", body: patch });
-  if (!res.ok) throw new Error("Failed to update person");
   return res.json();
 }
 
 export async function deletePerson(id) {
-  const res = await authFetch(`/people/${id}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete person");
+  await authFetch(`/people/${id}`, { method: "DELETE" });
 }
 
 export async function addPersonToFeature(personId, feature) {
-  const res = await authFetch(`/people/${personId}/features/${feature}`, { method: "POST" });
-  if (!res.ok) throw new Error("Failed to associate person");
+  await authFetch(`/people/${personId}/features/${feature}`, { method: "POST" });
 }
 
 export async function removePersonFromFeature(personId, feature) {
-  const res = await authFetch(`/people/${personId}/features/${feature}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to disassociate person");
+  await authFetch(`/people/${personId}/features/${feature}`, { method: "DELETE" });
 }
 
 // ─── DEBT ─────────────────────────────────────────────────────────────────────
@@ -295,7 +275,6 @@ export async function fetchDebts({ personId, archived } = {}) {
   const qs = params.toString();
   const path = qs ? `/debts?${qs}` : "/debts";
   const res = await authFetch(path);
-  if (!res.ok) throw new Error("Failed to fetch debts");
   const data = await res.json();
   return data.debts ?? data;
 }
@@ -304,31 +283,26 @@ export async function createDebtPayment(debtId, { amount, date, note }) {
   const body = { amount, date };
   if (note) body.note = note;
   const res = await authFetch(`/debts/${debtId}/payments`, { method: "POST", body });
-  if (!res.ok) throw new Error("Failed to create payment");
   return res.json();
 }
 
 export async function distributePayment({ type, amount, date, note, person_id }) {
   const body = { type, amount, date, ...(note ? { note } : {}), ...(person_id ? { person_id } : {}) };
   const res = await authFetch("/debts/distribute", { method: "POST", body });
-  if (!res.ok) throw new Error("Failed to distribute payment");
   return res.json();
 }
 
 export async function deleteDebt(debtId) {
-  const res = await authFetch(`/debts/${debtId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete debt");
+  await authFetch(`/debts/${debtId}`, { method: "DELETE" });
 }
 
 export async function updateDebt(debtId, patch) {
   const res = await authFetch(`/debts/${debtId}`, { method: "PUT", body: patch });
-  if (!res.ok) throw new Error("Failed to update debt");
   return res.json();
 }
 
 export async function deleteDebtPayment(debtId, paymentId) {
-  const res = await authFetch(`/debts/${debtId}/payments/${paymentId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete payment");
+  await authFetch(`/debts/${debtId}/payments/${paymentId}`, { method: "DELETE" });
 }
 
 export async function createDebt({ description, amount, type, status = "pending", person_id = null, due_date = null }) {
@@ -336,6 +310,5 @@ export async function createDebt({ description, amount, type, status = "pending"
   if (person_id) body.person_id = person_id;
   if (due_date) body.due_date = due_date;
   const res = await authFetch("/debts", { method: "POST", body });
-  if (!res.ok) throw new Error("Failed to create debt");
   return res.json();
 }
