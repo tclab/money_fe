@@ -25,7 +25,34 @@ npm run preview
 
 # Install dependencies
 npm install
+
+# Run the test suite headless (Vitest + React Testing Library)
+npm test
+
+# Watch mode
+npm run test:watch
 ```
+
+## Testing
+
+Vitest with jsdom, config in the `test` block of `vite.config.js`. Specs are
+`src/**/*.test.{js,jsx}`, colocated next to what they cover. Helpers live in
+`src/test/` and must not be named `*.test.js`, or the include glob runs them.
+
+Three things bite when testing a feature component:
+
+- **Two providers are mandatory.** `useToast()` throws outside `ToastProvider`,
+  and features also call `useI18n()`. Use `renderWithProviders`, which pins the
+  language to `en` since `es` is both the default and the fallback.
+- **`supabaseClient.js` must be module-mocked** or importing `api.js` reads
+  missing env vars. `vi.mock("../../supabaseClient.js", () => supabaseMock())`.
+- **Route the fetch mock by URL.** Features fire several requests on mount, so
+  one blanket `mockResolvedValue` makes tests pass for the wrong reason. Use
+  `installFetchMock({ "POST /debts": {...} })`; unmatched requests throw.
+
+Assert the request a component sends, not just what renders. Query by role and
+text; never assert on Tailwind class strings. `jsdom` is pinned to `^26` because
+v27 fails to load on Node 20.18 (`ERR_REQUIRE_ESM` out of `@asamuzakjp/css-color`).
 
 ## Project Structure
 
@@ -49,8 +76,13 @@ src/
 │   ├── index.jsx             # I18nProvider + useI18n hook (lang, theme, t, locale, currency)
 │   ├── es.json               # Spanish strings (default)
 │   └── en.json               # English strings
-└── lib/
-    └── utils.js              # cn(), toMonthKey(), fmt(), fmtMonth()
+├── lib/
+│   └── utils.js              # cn(), catColor(), toMonthKey(), toDateKey(), fmt(), fmtMonth()
+└── test/                      # Test-only helpers; never named *.test.js
+    ├── setup.js               # Loads @testing-library/jest-dom/vitest
+    ├── renderWithProviders.jsx # Wraps a feature in I18nProvider + ToastProvider
+    ├── mockSupabase.js        # supabaseMock() factory for vi.mock
+    └── mockFetch.js           # installFetchMock(routes), failWith, requestBody
 ```
 
 ## Architecture

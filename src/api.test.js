@@ -11,7 +11,7 @@ vi.mock("./supabaseClient.js", () => ({
   },
 }));
 
-const { fetchExpenses, deleteExpense } = await import("./api.js");
+const { fetchExpenses, fetchIncome, deleteExpense } = await import("./api.js");
 
 function respond({ status = 200, body, ok }) {
   return {
@@ -83,5 +83,79 @@ describe("authFetch error handling", () => {
   it("resolves void endpoints without reading a body", async () => {
     fetch.mockResolvedValue(respond({ status: 204, body: undefined }));
     await expect(deleteExpense("1")).resolves.toBeUndefined();
+  });
+});
+
+// mapExpense / mapIncome are module-private, so they are driven through the
+// fetchers that apply them.
+describe("mapExpense", () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renames expense/value to name/amount and keeps category_id", async () => {
+    fetch.mockResolvedValue(
+      respond({ body: { expenses: [{ id: "1", expense: "Rent", value: 100, category_id: "c1", status: "paid" }] } })
+    );
+    await expect(fetchExpenses()).resolves.toEqual([
+      { id: "1", name: "Rent", amount: 100, status: "paid", category_id: "c1" },
+    ]);
+  });
+
+  it("defaults a missing status to unpaid", async () => {
+    fetch.mockResolvedValue(respond({ body: { expenses: [{ id: "1", expense: "Rent", value: 100 }] } }));
+    const [row] = await fetchExpenses();
+    expect(row.status).toBe("unpaid");
+  });
+
+  it("passes an explicit status through untouched", async () => {
+    fetch.mockResolvedValue(
+      respond({ body: { expenses: [{ id: "1", expense: "Rent", value: 100, status: "overdue" }] } })
+    );
+    const [row] = await fetchExpenses();
+    expect(row.status).toBe("overdue");
+  });
+
+  it("maps a bare array body", async () => {
+    fetch.mockResolvedValue(respond({ body: [{ id: "1", expense: "Rent", value: 100 }] }));
+    const [row] = await fetchExpenses();
+    expect(row.name).toBe("Rent");
+  });
+});
+
+describe("mapIncome", () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renames income/value to name/amount and keeps category_id", async () => {
+    fetch.mockResolvedValue(
+      respond({ body: { income: [{ id: "2", income: "Salary", value: 500, category_id: "c2", status: "received" }] } })
+    );
+    await expect(fetchIncome()).resolves.toEqual([
+      { id: "2", name: "Salary", amount: 500, status: "received", category_id: "c2" },
+    ]);
+  });
+
+  it("defaults a missing status to expected", async () => {
+    fetch.mockResolvedValue(respond({ body: { income: [{ id: "2", income: "Salary", value: 500 }] } }));
+    const [row] = await fetchIncome();
+    expect(row.status).toBe("expected");
+  });
+
+  it("passes an explicit status through untouched", async () => {
+    fetch.mockResolvedValue(
+      respond({ body: { income: [{ id: "2", income: "Salary", value: 500, status: "received" }] } })
+    );
+    const [row] = await fetchIncome();
+    expect(row.status).toBe("received");
   });
 });
