@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { cn } from "../lib/utils.js";
 
+// With `pos` it floats as a dropdown at that viewport point. Without it, it
+// renders inline, e.g. inside a Modal whose transform would offset a fixed box.
 export default function MonthYearPicker({ pos, dropRef, viewDate, onSelect }) {
   const now = new Date();
   const [year, setYear] = useState(viewDate.getFullYear());
@@ -10,8 +12,11 @@ export default function MonthYearPicker({ pos, dropRef, viewDate, onSelect }) {
   return (
     <div
       ref={dropRef}
-      style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-      className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-xl p-3 w-52"
+      style={pos ? { position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 } : undefined}
+      className={cn(
+        "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl p-3 w-52",
+        pos ? "shadow-xl" : "mx-auto"
+      )}
     >
       <div className="mb-2">
         <select

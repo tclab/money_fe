@@ -324,5 +324,11 @@
   "splitter.person2": "Person 2",
   "splitter.addExisting": "Add existing",
   "splitter.createNew": "Create new",
-  "splitter.removeFromSplitter": "Remove from splitter"
+  "splitter.removeFromSplitter": "Remove from splitter",
+  "splitter.copyFromMonth": "Copy from month",
+  "splitter.copyAction": "Copy",
+  "splitter.copyToCopy": "Items to copy",
+  "splitter.copySkippedMatching": "Already present, skipped",
+  "splitter.copySkippedOrphan": "Discounts without a person, skipped",
+  "splitter.copySameMonth": "Pick a month other than the one you are viewing."
 }

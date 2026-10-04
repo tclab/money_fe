@@ -324,5 +324,11 @@
   "splitter.person2": "Persona 2",
   "splitter.addExisting": "Agregar existente",
   "splitter.createNew": "Crear nuevo",
-  "splitter.removeFromSplitter": "Quitar del splitter"
+  "splitter.removeFromSplitter": "Quitar del splitter",
+  "splitter.copyFromMonth": "Copiar de otro mes",
+  "splitter.copyAction": "Copiar",
+  "splitter.copyToCopy": "Ítems a copiar",
+  "splitter.copySkippedMatching": "Ya existen, se omiten",
+  "splitter.copySkippedOrphan": "Descuentos sin persona, se omiten",
+  "splitter.copySameMonth": "Elige un mes distinto al que estás viendo."
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Plus, Cloud } from "lucide-react";
+import { Plus, Cloud, CopyPlus } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
 import { useToast } from "../../components/Toast.jsx";
 import { cn, toMonthKey, fmt, fmtMonth } from "../../lib/utils.js";
@@ -14,6 +14,7 @@ import ReportMenu from "../../components/ReportMenu.jsx";
 import Btn from "../../components/Btn.jsx";
 import PageHeader from "../../components/PageHeader.jsx";
 import AmountInput from "../../components/AmountInput.jsx";
+import CopyMonthModal from "./CopyMonthModal.jsx";
 
 const SPLITTER_COLORS = ["#10b981", "#8b5cf6", "#f59e0b", "#3b82f6", "#f43f5e", "#06b6d4"];
 
@@ -89,6 +90,7 @@ export default function Splitter() {
 
   const [editModal, setEditModal] = useState(null);
   const [createModal, setCreateModal] = useState(null);
+  const [copyModal, setCopyModal] = useState(false);
 
   const [addPersonModal, setAddPersonModal] = useState(false);
   const [personCreateForm, setPersonCreateForm] = useState(null);
@@ -183,6 +185,15 @@ export default function Splitter() {
     setItems((xs) => xs.filter((x) => x.id !== id));
     try {
       await deleteSplitter(id);
+    } catch (e) {
+      showError(e);
+    }
+  };
+
+  const handleCopied = async () => {
+    setCopyModal(false);
+    try {
+      setItems(await fetchSplitters(monthKey));
     } catch (e) {
       showError(e);
     }
@@ -319,7 +330,14 @@ export default function Splitter() {
           { label: t("splitter.discounts"), value: fmt(totalDesc, locale, currency), tone: "pending" },
           { label: t("splitter.pool"), value: fmt(pool, locale, currency), tone: "positive" },
         ]}
-        action={<ReportMenu status={captureStatus} onSelect={handleCapture} />}
+        action={
+          <div className="flex items-center gap-2">
+            <Btn size="md" onClick={() => setCopyModal(true)}>
+              <CopyPlus size={14} /> {t("splitter.copyFromMonth")}
+            </Btn>
+            <ReportMenu status={captureStatus} onSelect={handleCapture} />
+          </div>
+        }
       />
 
       {/* Content */}
@@ -423,6 +441,10 @@ export default function Splitter() {
           </div>
         )}
       </div>
+
+      {copyModal && (
+        <CopyMonthModal targetDate={viewDate} onClose={() => setCopyModal(false)} onCopied={handleCopied} />
+      )}
 
       {/* Create modal */}
       <Modal open={!!createModal} onClose={() => setCreateModal(null)}

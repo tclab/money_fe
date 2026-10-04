@@ -226,6 +226,14 @@ export async function deleteSplitter(id) {
   await authFetch(`/splitter/items/${id}`, { method: "DELETE" });
 }
 
+// Month copy. A dry run returns the same counts and creates nothing:
+// { to_copy, skipped_matching, skipped_orphan, created }.
+export async function copySplitterMonth(sourceMonth, targetMonth, dryRun = false) {
+  const body = { source_month: sourceMonth, target_month: targetMonth, dry_run: dryRun };
+  const res = await authFetch("/splitter/items/copy", { method: "POST", body });
+  return res.json();
+}
+
 // ─── PEOPLE ───────────────────────────────────────────────────────────────────
 
 export async function fetchPeople(feature = null) {
