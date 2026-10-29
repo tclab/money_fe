@@ -64,11 +64,14 @@ src/
 ├── api.js                     # Backend REST client (all fetch calls live here)
 ├── storage.js                 # Thin window.storage wrapper over localStorage (prefs only)
 ├── features/
-│   ├── expenses/Expenses.jsx      # Expenses feature (~593 lines)
+│   ├── expenses/Expenses.jsx      # Expenses config over CategorizedPage (~47 lines)
+│   ├── income/Income.jsx          # Income config over CategorizedPage (~47 lines)
 │   ├── splitter/Splitter.jsx      # Splitter feature (~802 lines)
 │   └── debtKiller/DebtKiller.jsx  # DebtKiller feature (~770 lines)
 ├── components/
 │   ├── Modal.jsx              # Generic modal dialog
+│   ├── CategorizedPage.jsx    # Shared monthly page for Expenses/Income: header, modals, writes
+│   ├── CategorizedList.jsx    # Shared category table: sections, collapse, drag-reorder, status
 │   ├── Btn.jsx                # Button with variants/sizes
 │   ├── StatusPicker.jsx       # Expense status selector + AMOUNT_CLS export
 │   └── MonthYearPicker.jsx    # Month/year navigation picker
@@ -77,6 +80,7 @@ src/
 │   ├── es.json               # Spanish strings (default)
 │   └── en.json               # English strings
 ├── lib/
+│   ├── useResource.js        # Fetch lifecycle + optimistic mutate/patch with targeted undo
 │   └── utils.js              # cn(), catColor(), toMonthKey(), toDateKey(), fmt(), fmtMonth()
 └── test/                      # Test-only helpers; never named *.test.js
     ├── setup.js               # Loads @testing-library/jest-dom/vitest

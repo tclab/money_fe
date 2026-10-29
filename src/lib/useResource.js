@@ -23,20 +23,25 @@ export function useResource(fetcher, deps = []) {
     return () => { stale = true; };
   }, deps);
 
-  // Optimistic: apply `update` now, restore the prior rows if `save` rejects.
-  // Rethrows so the caller can surface the error.
-  // shortcut: restores a whole snapshot, so a concurrent mutation that landed meanwhile
-  // is also undone; switch to per-row undo if overlapping saves become common.
-  const mutate = async (update, save) => {
-    const snapshot = rows;
-    setRows(update);
+  // Optimistic: apply `apply` now; if `save` rejects, run `undo` on the current rows
+  // and rethrow. Without `undo` the optimistic change stays (delete, create, reorder).
+  const mutate = async (apply, save = async () => {}, undo) => {
+    setRows(apply);
     try {
       await save();
     } catch (e) {
-      setRows(snapshot);
+      if (undo) setRows(undo);
       throw e;
     }
   };
 
-  return { rows, loading, error, mutate };
+  // Set `fields` on row `id`; on failure restore only those fields on that row.
+  const patch = (id, fields, save) => {
+    const row = rows.find((r) => r.id === id);
+    const prior = Object.fromEntries(Object.keys(fields).map((k) => [k, row?.[k]]));
+    const set = (values) => (xs) => xs.map((r) => r.id === id ? { ...r, ...values } : r);
+    return mutate(set(fields), save, set(prior));
+  };
+
+  return { rows, loading, error, mutate, patch };
 }

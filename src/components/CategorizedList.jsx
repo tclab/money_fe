@@ -50,8 +50,8 @@ export default function CategorizedList({
     done: xs.filter((e) => e.status === doneStatus).reduce((s, e) => s + e.amount, 0),
   });
 
-  const header = ({ id, name, count, dot, actions }) => {
-    const { total, done } = totals(count);
+  const header = ({ id, name, rows, dot, actions }) => {
+    const { total, done } = totals(rows);
     return (
       <tbody>
         <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
@@ -65,7 +65,7 @@ export default function CategorizedList({
                 <ChevronDown size={10} className={cn("transition-transform", collapsed.has(id) && "-rotate-90")} />
               </button>
               {name}
-              <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {count.length} items</span>
+              <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {rows.length} {t("category.items")}</span>
               <span className="hidden sm:block w-20">
                 <ProgressBar value={done} max={total} tone="positive" height="h-1" />
               </span>
@@ -123,7 +123,7 @@ export default function CategorizedList({
         {grouped.map((sec, si) => (
           <Fragment key={sec.id}>
             {header({
-              id: sec.id, name: sec.name, count: sec.items,
+              id: sec.id, name: sec.name, rows: sec.items,
               dot: <span style={{ background: SECTION_COLORS[si % SECTION_COLORS.length] }} className="inline-block w-2 h-2 rounded-full" />,
               actions: [
                 { label: t("actions.add"), icon: Plus, onClick: () => onAddItem(sec.id) },
@@ -171,7 +171,7 @@ export default function CategorizedList({
         {uncategorizedItems.length > 0 && (
           <Fragment key={UNCATEGORIZED_ID}>
             {header({
-              id: UNCATEGORIZED_ID, name: t("category.uncategorized"), count: uncategorizedItems,
+              id: UNCATEGORIZED_ID, name: t("category.uncategorized"), rows: uncategorizedItems,
               dot: <span className="inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-600" />,
             })}
             {!collapsed.has(UNCATEGORIZED_ID) && (

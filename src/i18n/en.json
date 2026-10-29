@@ -139,6 +139,7 @@
   "category.editTitle": "Edit category",
   "category.manage": "Categories",
   "category.uncategorized": "Uncategorized",
+  "category.items": "items",
   "category.renameDup": "A category with that name already exists.",
   "category.delete": "Delete category",
   "category.deleteTitle": "Delete category",

@@ -39,11 +39,48 @@ describe("useResource", () => {
     let caught;
     await act(async () => {
       await result.current
-        .mutate((rows) => rows.filter((r) => r.id !== 1), () => Promise.reject(failure))
+        .mutate(
+          (rows) => rows.filter((r) => r.id !== 1),
+          () => Promise.reject(failure),
+          (rows) => [{ id: 1 }, ...rows],
+        )
         .catch((e) => { caught = e; });
     });
     expect(caught).toBe(failure);
     expect(result.current.rows).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it("undoes only the failed patch, keeping an overlapping one", async () => {
+    const { result } = renderHook(() => useResource(() => Promise.resolve([
+      { id: 1, status: "unpaid", name: "a" }, { id: 2, status: "unpaid", name: "b" },
+    ])));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    let failFirst;
+    let first;
+    act(() => {
+      first = result.current
+        .patch(1, { status: "paid" }, () => new Promise((_, reject) => { failFirst = reject; }))
+        .catch(() => {});
+    });
+    await act(async () => {
+      await result.current.patch(1, { name: "a2" }, () => Promise.resolve());
+      await result.current.patch(2, { status: "paid" }, () => Promise.resolve());
+    });
+    await act(async () => { failFirst(new Error("boom")); await first; });
+    expect(result.current.rows).toEqual([
+      { id: 1, status: "unpaid", name: "a2" }, { id: 2, status: "paid", name: "b" },
+    ]);
+  });
+
+  it("keeps the optimistic change on failure when no undo is given", async () => {
+    const { result } = renderHook(() => useResource(() => Promise.resolve([{ id: 1 }, { id: 2 }])));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current
+        .mutate((rows) => rows.filter((r) => r.id !== 1), () => Promise.reject(new Error("x")))
+        .catch(() => {});
+    });
+    expect(result.current.rows).toEqual([{ id: 2 }]);
   });
 
   it("refetches when deps change and ignores the stale response", async () => {
