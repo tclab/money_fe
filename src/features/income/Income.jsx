@@ -1,10 +1,9 @@
-import { useState, useEffect, Fragment } from "react";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { Plus, Trash2, ChevronDown, Cloud, GripVertical, Pencil, ArrowUp, ArrowDown, Tags } from "lucide-react";
+import { useState } from "react";
+import { Plus, Trash2, Cloud, Pencil, Tags } from "lucide-react";
 import { useI18n } from "../../i18n/index.jsx";
-import { errorKey } from "../../lib/apiError.js";
 import { useToast } from "../../components/Toast.jsx";
-import { cn, toMonthKey, fmt } from "../../lib/utils.js";
+import { toMonthKey, fmt } from "../../lib/utils.js";
+import { useResource } from "../../lib/useResource.js";
 import {
   fetchCategories, fetchIncome, upsertIncomeStatus, updateIncome,
   reorderIncome, reorderCategories, createCategory, createIncome, updateCategory,
@@ -12,101 +11,56 @@ import {
 } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
 import Btn from "../../components/Btn.jsx";
-import StatusPicker from "../../components/StatusPicker.jsx";
 import PageHeader from "../../components/PageHeader.jsx";
-import ProgressBar from "../../components/ProgressBar.jsx";
 import RowActions from "../../components/RowActions.jsx";
 import AmountInput from "../../components/AmountInput.jsx";
-import { SECTION_COLORS, TONE, TYPE } from "../../lib/tokens.js";
+import CategorizedList from "../../components/CategorizedList.jsx";
+import { SECTION_COLORS, TYPE } from "../../lib/tokens.js";
+
+const STATUS_OPTIONS = ["received", "expected"];
+const DONE_STATUS = "received";
 
 export default function Income() {
   const { t, locale, currency } = useI18n();
   const { showError } = useToast();
   const today = new Date();
-  const [categories, setCategories] = useState([]);
-  const [income, setIncome] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null); // { id, section_id, name, amount }
+  const [editing, setEditing] = useState(null); // { id, category_id, name, amount }
   const [newCategory, setNewCategory] = useState(null); // null | string
   const [editingCategory, setEditingCategory] = useState(null); // null | { id, name }
   const [editCategoryErr, setEditCategoryErr] = useState(false);
   const [manageOpen, setManageOpen] = useState(false); // category manager modal
-  const [collapsed, setCollapsed] = useState(new Set());
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, name }
   const [pendingDeleteIncome, setPendingDeleteIncome] = useState(null); // null | { id, name }
   const [newIncome, setNewIncome] = useState(null); // null | { category_id, name, amount }
   const [viewDate, setViewDate] = useState(today);
 
   const monthKey = toMonthKey(viewDate);
-  const currentMonthKey = toMonthKey(today);
-  const isPastMonth = monthKey < currentMonthKey;
+  const isPastMonth = monthKey < toMonthKey(today);
 
-  useEffect(() => {
-    setLoading(true);
-    // Clear the previous month's failure, else one bad load sticks forever.
-    setError(null);
-    Promise.all([
-      fetchCategories("income", isPastMonth),
-      fetchIncome(null, monthKey),
-    ]).then(([secs, incs]) => {
-      setCategories(secs);
-      setIncome(incs);
-      setLoading(false);
-    }).catch((e) => {
-      setError(errorKey(e));
-      setLoading(false);
-    });
-  }, [monthKey]);
+  const cats = useResource(() => fetchCategories("income", isPastMonth), [monthKey]);
+  const items = useResource(() => fetchIncome(null, monthKey), [monthKey]);
+  const categories = cats.rows;
+  const income = items.rows;
 
-  const grouped = categories.map((s) => ({
-    ...s,
-    items: income.filter((e) => e.category_id === s.id),
-  }));
-
-  // Virtual bucket: items with null or orphaned (deleted-category) category_id.
-  const UNCATEGORIZED_ID = "__uncategorized__";
-  const liveIds = new Set(categories.map((c) => c.id));
-  const uncategorizedItems = income.filter((e) => !e.category_id || !liveIds.has(e.category_id));
-
-  const all = income;
-  const grandTotal = all.reduce((s, e) => s + e.amount, 0);
-  const receivedTotal = all.filter((e) => e.status === "received").reduce((s, e) => s + e.amount, 0);
+  const grandTotal = income.reduce((s, e) => s + e.amount, 0);
+  const receivedTotal = income.filter((e) => e.status === DONE_STATUS).reduce((s, e) => s + e.amount, 0);
   const pending = grandTotal - receivedTotal;
 
-  const handleStatusChange = async (id, newStatus) => {
-    const prev = income.find((e) => e.id === id);
-    setIncome((xs) => xs.map((e) => e.id === id ? { ...e, status: newStatus } : e));
-    try {
-      await upsertIncomeStatus(id, monthKey, { status: newStatus });
-    } catch (e) {
-      showError(e);
-      setIncome((xs) => xs.map((e) => e.id === id ? { ...e, status: prev.status } : e));
-    }
-  };
+  // Convention below: a save that rejects rolls back; a save that catches its own
+  // error keeps the optimistic change, matching the pre-rebuild behavior.
+  const patchItem = (id, patch) => (xs) => xs.map((e) => e.id === id ? { ...e, ...patch } : e);
 
+  const handleStatusChange = (id, status) =>
+    items.mutate(patchItem(id, { status }), () => upsertIncomeStatus(id, monthKey, { status })).catch(showError);
 
-  const handleDeleteIncome = async () => {
+  const handleDeleteIncome = () => {
     if (!pendingDeleteIncome) return;
     const { id } = pendingDeleteIncome;
     setPendingDeleteIncome(null);
-    setIncome((xs) => xs.filter((e) => e.id !== id));
-    try {
-      await deleteIncomeApi(id);
-    } catch (e) {
-      showError(e);
-    }
+    items.mutate((xs) => xs.filter((e) => e.id !== id), () => deleteIncomeApi(id).catch(showError));
   };
 
-  const toggleCollapsed = (id) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const moveCategory = async (id, direction) => {
+  const moveCategory = (id, direction) => {
     const idx = categories.findIndex((c) => c.id === id);
     const newIdx = idx + direction;
     if (newIdx < 0 || newIdx >= categories.length) return;
@@ -114,16 +68,11 @@ export default function Income() {
     const [moved] = reordered.splice(idx, 1);
     reordered.splice(newIdx, 0, moved);
     const updated = reordered.map((c, i) => ({ ...c, position: i }));
-    setCategories(updated);
-    try {
-      await reorderCategories("income", updated.map((c) => ({ id: c.id, position: c.position })));
-    } catch (e) {
-      showError(e);
-      setCategories(categories);
-    }
+    cats.mutate(() => updated,
+      () => reorderCategories("income", updated.map((c) => ({ id: c.id, position: c.position })))).catch(showError);
   };
 
-  const saveEditingCategory = async () => {
+  const saveEditingCategory = () => {
     if (!editingCategory) return;
     const name = editingCategory.name.trim();
     if (!name) return;
@@ -132,29 +81,18 @@ export default function Income() {
       setEditCategoryErr(true);
       return;
     }
-    const prev = categories.find((c) => c.id === editingCategory.id);
-    setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name } : c));
+    const { id } = editingCategory;
     setEditingCategory(null);
     setEditCategoryErr(false);
-    try {
-      await updateCategory("income", editingCategory.id, name);
-    } catch (e) {
-      showError(e);
-      setCategories((xs) => xs.map((c) => c.id === editingCategory.id ? { ...c, name: prev.name } : c));
-    }
+    cats.mutate(patchItem(id, { name }), () => updateCategory("income", id, name)).catch(showError);
   };
 
-  const handleDeleteCategory = async () => {
+  const handleDeleteCategory = () => {
     if (!pendingDelete) return;
     const { id } = pendingDelete;
     setPendingDelete(null);
-    setCategories((xs) => xs.filter((c) => c.id !== id));
     // Keep the items; they orphan into the Uncategorized bucket.
-    try {
-      await deleteCategoryApi("income", id);
-    } catch (e) {
-      showError(e);
-    }
+    cats.mutate((xs) => xs.filter((c) => c.id !== id), () => deleteCategoryApi("income", id).catch(showError));
   };
 
   const handleCreateCategory = async () => {
@@ -165,7 +103,7 @@ export default function Income() {
     if (categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) return;
     try {
       const sec = await createCategory("income", name);
-      setCategories((xs) => xs.some((c) => c.id === sec.id) ? xs : [...xs, sec]);
+      cats.mutate((xs) => xs.some((c) => c.id === sec.id) ? xs : [...xs, sec], () => {});
     } catch (e) {
       showError(e);
     }
@@ -179,56 +117,36 @@ export default function Income() {
     setNewIncome(null);
     try {
       const inc = await createIncome(draft.category_id || null, draft.name, draft.amount);
-      setIncome((xs) => [...xs, inc]);
+      items.mutate((xs) => [...xs, inc], () => {});
     } catch (e) {
       showError(e);
     }
   };
 
-  const saveEditing = async () => {
+  const saveEditing = () => {
     if (!editing) return;
-    const prev = income.find((e) => e.id === editing.id);
+    const { id, name, amount } = editing;
     const categoryId = editing.category_id || null;
-    setIncome((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: editing.name, amount: editing.amount, category_id: categoryId } : e));
     setEditing(null);
-    try {
-      await Promise.all([
-        updateIncome(editing.id, { income: editing.name, category_id: categoryId }),
-        upsertIncomeStatus(editing.id, monthKey, { value: editing.amount }),
-      ]);
-    } catch (e) {
-      showError(e);
-      setIncome((xs) => xs.map((e) => e.id === editing.id ? { ...e, name: prev.name, amount: prev.amount, category_id: prev.category_id } : e));
-    }
+    items.mutate(patchItem(id, { name, amount, category_id: categoryId }), () => Promise.all([
+      updateIncome(id, { income: name, category_id: categoryId }),
+      upsertIncomeStatus(id, monthKey, { value: amount }),
+    ])).catch(showError);
   };
 
-  const handleDragEnd = async (result) => {
-    if (!result.destination) return;
-    const { source, destination } = result;
-    if (source.droppableId !== destination.droppableId || source.index === destination.index) return;
-    const catId = source.droppableId;
-    const catIncome = income.filter((e) => e.category_id === catId);
-    const reordered = [...catIncome];
-    const [moved] = reordered.splice(source.index, 1);
-    reordered.splice(destination.index, 0, moved);
-    const updated = reordered.map((e, i) => ({ ...e, position: i }));
-    setIncome((prev) => [
-      ...prev.filter((e) => e.category_id !== catId),
-      ...updated,
-    ]);
-    try {
-      await reorderIncome(updated.map((e) => ({ id: e.id, position: e.position })));
-    } catch (err) {
-      showError(err);
-    }
-  };
+  const handleItemsReorder = (catId, updated) =>
+    items.mutate(
+      (prev) => [...prev.filter((e) => e.category_id !== catId), ...updated],
+      () => reorderIncome(updated.map((e) => ({ id: e.id, position: e.position }))).catch(showError),
+    );
 
-  if (loading) return (
+  if (cats.loading || items.loading) return (
     <div className="flex items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
       <Cloud size={28} className="animate-pulse mr-2" /> {t("state.loading")}
     </div>
   );
 
+  const error = cats.error || items.error;
   if (error) return (
     <div className="flex items-center justify-center h-64 text-rose-400 dark:text-rose-500 text-sm">
       {t(error)}
@@ -240,7 +158,7 @@ export default function Income() {
       <PageHeader
         viewDate={viewDate} onSelectMonth={setViewDate}
         title={t("income.title")}
-        meta={`${all.length} ${t("income.transactions")} · ${categories.length} ${t("income.sources")}`}
+        meta={`${income.length} ${t("income.transactions")} · ${categories.length} ${t("income.sources")}`}
         metrics={[
           { label: t("income.received"), value: fmt(receivedTotal, locale, currency), tone: "positive" },
           { label: t("income.pending"), value: fmt(pending, locale, currency), tone: "pending" },
@@ -260,178 +178,19 @@ export default function Income() {
         }
       />
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden">
-        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-zinc-800">
-                <th className="w-8 py-2 px-3" />
-                <th className="text-left py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium">{t("col.income")}</th>
-                <th className="text-right py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-36">{t("col.value")}</th>
-                <th className="text-center py-2 px-3 text-slate-400 dark:text-zinc-500 uppercase tracking-wider font-medium w-16">{t("col.status")}</th>
-              </tr>
-            </thead>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              {grouped.map((sec, si) => {
-                const catTotal = sec.items.reduce((s, e) => s + e.amount, 0);
-                const catReceived = sec.items.filter((e) => e.status === "received").reduce((s, e) => s + e.amount, 0);
-                const color = SECTION_COLORS[si % SECTION_COLORS.length];
-                const catActions = [
-                  { label: t("actions.add"), icon: Plus, onClick: () => setNewIncome({ category_id: sec.id, name: "", amount: 0 }) },
-                  { label: t("actions.rename"), icon: Pencil, onClick: () => setEditingCategory({ id: sec.id, name: sec.name }) },
-                  { label: t("actions.moveUp"), icon: ArrowUp, onClick: () => moveCategory(sec.id, -1), disabled: si === 0 },
-                  { label: t("actions.moveDown"), icon: ArrowDown, onClick: () => moveCategory(sec.id, 1), disabled: si === grouped.length - 1 },
-                  { label: t("actions.delete"), icon: Trash2, tone: "danger", onClick: () => setPendingDelete({ id: sec.id, name: sec.name }) },
-                ];
-                return (
-                  <Fragment key={sec.id}>
-                    <tbody>
-                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
-                        <td className="py-2.5 px-3">
-                          <span style={{ background: color }} className="inline-block w-2 h-2 rounded-full" />
-                        </td>
-                        <td className="py-2.5 px-3 font-bold text-slate-600 dark:text-zinc-300 tracking-widest uppercase">
-                          <span className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleCollapsed(sec.id); }}
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors"
-                            >
-                              <ChevronDown size={10} className={cn("transition-transform", collapsed.has(sec.id) && "-rotate-90")} />
-                            </button>
-                            {sec.name}
-                            <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {sec.items.length} items</span>
-                            <span className="hidden sm:block w-20">
-                              <ProgressBar value={catReceived} max={catTotal} tone="positive" height="h-1" />
-                            </span>
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          {!isPastMonth && <RowActions items={catActions} />}
-                        </td>
-                      </tr>
-                    </tbody>
-                    {!collapsed.has(sec.id) && <Droppable droppableId={sec.id} isDropDisabled={isPastMonth}>
-                      {(droppableProvided) => (
-                        <tbody ref={droppableProvided.innerRef} {...droppableProvided.droppableProps}>
-                          {sec.items.map((e, i) => (
-                            <Draggable key={e.id} draggableId={e.id} index={i} isDragDisabled={isPastMonth}>
-                              {(draggableProvided, snapshot) => (
-                                <tr
-                                  ref={draggableProvided.innerRef}
-                                  {...draggableProvided.draggableProps}
-                                  onClick={() => !isPastMonth && !snapshot.isDragging && setEditing({ id: e.id, category_id: e.category_id ?? "", name: e.name, amount: e.amount })}
-                                  className={cn(
-                                    "group border-b border-slate-100 dark:border-zinc-800/60 transition-colors",
-                                    i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : "",
-                                    isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer",
-                                    snapshot.isDragging ? "bg-emerald-50 dark:bg-emerald-950/20 shadow-md" : ""
-                                  )}>
-                                  <td className="py-1.5 pl-3 pr-0 w-px" onClick={(ev) => ev.stopPropagation()}>
-                                    <span className="flex items-center gap-1">
-                                      {!isPastMonth && (
-                                        <span
-                                          {...draggableProvided.dragHandleProps}
-                                          className="inline-flex items-center justify-center w-4 h-4 text-slate-300 dark:text-zinc-600 hover:text-slate-500 dark:hover:text-zinc-400 cursor-grab active:cursor-grabbing"
-                                        >
-                                          <GripVertical size={10} />
-                                        </span>
-                                      )}
-                                      {!isPastMonth && (
-                                        <button
-                                          onClick={() => setPendingDeleteIncome({ id: e.id, name: e.name })}
-                                          className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                        >
-                                          <Trash2 size={10} />
-                                        </button>
-                                      )}
-                                    </span>
-                                  </td>
-                                  <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                                  <td className={cn("py-1.5 px-3 text-right font-mono font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
-                                    {fmt(e.amount, locale, currency)}
-                                  </td>
-                                  <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
-                                    <StatusPicker status={e.status} options={["received", "expected"]} onChange={(v) => handleStatusChange(e.id, v)} />
-                                  </td>
-                                </tr>
-                              )}
-                            </Draggable>
-                          ))}
-                          {droppableProvided.placeholder}
-                        </tbody>
-                      )}
-                    </Droppable>}
-                  </Fragment>
-                );
-              })}
-              {uncategorizedItems.length > 0 && (() => {
-                const catTotal = uncategorizedItems.reduce((s, e) => s + e.amount, 0);
-                const catReceived = uncategorizedItems.filter((e) => e.status === "received").reduce((s, e) => s + e.amount, 0);
-                const isOpen = !collapsed.has(UNCATEGORIZED_ID);
-                return (
-                  <Fragment key={UNCATEGORIZED_ID}>
-                    <tbody>
-                      <tr className="border-t-2 border-slate-200 dark:border-zinc-700 bg-slate-200/70 dark:bg-zinc-700/60">
-                        <td className="py-2.5 px-3">
-                          <span className="inline-block w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-600" />
-                        </td>
-                        <td className="py-2.5 px-3 font-bold text-slate-600 dark:text-zinc-300 tracking-widest uppercase">
-                          <span className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleCollapsed(UNCATEGORIZED_ID); }}
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors"
-                            >
-                              <ChevronDown size={10} className={cn("transition-transform", !isOpen && "-rotate-90")} />
-                            </button>
-                            {t("category.uncategorized")}
-                            <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-600 normal-case tracking-normal">· {uncategorizedItems.length} items</span>
-                            <span className="hidden sm:block w-20">
-                              <ProgressBar value={catReceived} max={catTotal} tone="positive" height="h-1" />
-                            </span>
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-500 dark:text-zinc-400">{fmt(catTotal, locale, currency)}</td>
-                        <td className="py-2.5 px-3" />
-                      </tr>
-                    </tbody>
-                    {isOpen && (
-                      <tbody>
-                        {uncategorizedItems.map((e, i) => (
-                          <tr
-                            key={e.id}
-                            onClick={() => !isPastMonth && setEditing({ id: e.id, category_id: e.category_id ?? "", name: e.name, amount: e.amount })}
-                            className={cn(
-                              "group border-b border-slate-100 dark:border-zinc-800/60 transition-colors",
-                              i % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/30" : "",
-                              isPastMonth ? "" : "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10 cursor-pointer"
-                            )}>
-                            <td className="py-1.5 pl-3 pr-0 w-px" onClick={(ev) => ev.stopPropagation()}>
-                              {!isPastMonth && (
-                                <button
-                                  onClick={() => setPendingDeleteIncome({ id: e.id, name: e.name })}
-                                  className="inline-flex items-center justify-center w-4 h-4 rounded text-slate-300 dark:text-zinc-600 hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                                >
-                                  <Trash2 size={10} />
-                                </button>
-                              )}
-                            </td>
-                            <td className="py-1.5 px-3 text-slate-700 dark:text-zinc-300">{e.name}</td>
-                            <td className={cn("py-1.5 px-3 text-right font-mono font-semibold", e.amount === 0 ? TONE.meta : TONE.neutral)}>
-                              {fmt(e.amount, locale, currency)}
-                            </td>
-                            <td className="py-1.5 px-3 text-center" onClick={(ev) => ev.stopPropagation()}>
-                              <StatusPicker status={e.status} options={["received", "expected"]} onChange={(v) => handleStatusChange(e.id, v)} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    )}
-                  </Fragment>
-                );
-              })()}
-            </DragDropContext>
-          </table>
+          <CategorizedList
+            categories={categories} items={income} nameLabel={t("col.income")}
+            statusOptions={STATUS_OPTIONS} doneStatus={DONE_STATUS} readOnly={isPastMonth}
+            onStatusChange={handleStatusChange}
+            onItemClick={(e) => setEditing({ id: e.id, category_id: e.category_id ?? "", name: e.name, amount: e.amount })}
+            onItemDelete={(e) => setPendingDeleteIncome({ id: e.id, name: e.name })}
+            onItemsReorder={handleItemsReorder}
+            onAddItem={(categoryId) => setNewIncome({ category_id: categoryId, name: "", amount: 0 })}
+            onRenameCategory={(c) => setEditingCategory({ id: c.id, name: c.name })}
+            onMoveCategory={moveCategory}
+            onDeleteCategory={(c) => setPendingDelete({ id: c.id, name: c.name })}
+          />
         </div>
 
         {/* Footer */}
