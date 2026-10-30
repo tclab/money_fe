@@ -5,3 +5,6 @@
 .env
 .env.local
 .env.*.local
+
+# Build output (Netlify builds it)
+dist/
