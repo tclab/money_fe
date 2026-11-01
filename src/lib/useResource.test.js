@@ -96,4 +96,21 @@ describe("useResource", () => {
     expect(result.current.rows).toEqual([{ id: "oct" }]);
     expect(result.current.loading).toBe(false);
   });
+
+  it("clears a failed load as soon as deps change", async () => {
+    const pending = {};
+    const fetcherFor = (month) => () => new Promise((resolve, reject) => { pending[month] = { resolve, reject }; });
+    const { result, rerender } = renderHook(
+      ({ month }) => useResource(fetcherFor(month), [month]),
+      { initialProps: { month: "2026-09" } },
+    );
+    await act(async () => { pending["2026-09"].reject(new ApiError({ code: "NOT_FOUND" })); });
+    expect(result.current.error).toBe("error.notFound");
+    rerender({ month: "2026-10" });
+    expect(result.current.loading).toBe(true);
+    expect(result.current.error).toBe(null);
+    await act(async () => { pending["2026-10"].resolve([{ id: "oct" }]); });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.rows).toEqual([{ id: "oct" }]);
+  });
 });

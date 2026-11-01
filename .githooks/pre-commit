@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Lint staged JS. Enable once per clone: npm run hooks
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx)$')
+[ -z "$files" ] && exit 0
+exec npx eslint $files

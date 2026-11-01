@@ -15,16 +15,121 @@ import Splitter from "./features/splitter/Splitter.jsx";
 import DebtKiller from "./features/debtKiller/DebtKiller.jsx";
 import Profile from "./features/profile/Profile.jsx";
 
+// Language dropdown. Self-contained (own open-state + ref) so it can render
+// in both the desktop top bar and the mobile top bar without conflicts.
+const LANGS = [
+  { code: "es", label: "Español", short: "ES" },
+  { code: "en", label: "English", short: "EN" },
+];
+function LangSelect() {
+  const { t, lang, setLang } = useI18n();
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+  const current = LANGS.find((l) => l.code === lang) || LANGS[0];
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen((v) => !v)} title={t("prefs.language")}
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+        <Globe size={14} className="shrink-0" />
+        <span className="text-xs font-semibold">{current.short}</span>
+        <ChevronDown size={13} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+            className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
+            {LANGS.map((l) => (
+              <button key={l.code} onClick={() => { setLang(l.code); setOpen(false); }}
+                className={cn("w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium transition-colors",
+                  lang === l.code
+                    ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
+                    : "text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                )}>
+                <span>{l.label}</span>
+                {lang === l.code && <Check size={14} className="shrink-0" />}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Theme toggle button, shared by the desktop and mobile bars.
+function ThemeToggle() {
+  const { t, theme, setTheme } = useI18n();
+  return (
+    <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      title={theme === "dark" ? t("theme.light") : t("theme.dark")}
+      className="flex items-center justify-center rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+      {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+    </button>
+  );
+}
+
+// Avatar + name + chevron, with a dropdown holding sign out.
+// Self-contained so it can render in both the desktop and mobile bars
+// without sharing open-state or a single ref between instances.
+function UserMenu({ onProfile }) {
+  const { t } = useI18n();
+  const { user, signOut } = useAuth();
+  const userName = (user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User");
+  const userInitial = userName.charAt(0).toUpperCase();
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-bold shrink-0">{userInitial}</span>
+        <span className="hidden sm:block max-w-[140px] truncate text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
+        <ChevronDown size={14} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
+            className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
+            <div className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800">
+              <div className="text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
+              {user?.email && <div className="text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
+            </div>
+            <button onClick={() => { setOpen(false); onProfile(); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+              <UserRound size={14} className="shrink-0" /> {t("nav.profile")}
+            </button>
+            <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
+            <button onClick={() => { setOpen(false); signOut(); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+              <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+
 export default function App() {
-  const { t, lang, setLang, theme, setTheme } = useI18n();
-  const { session, user, loading, recovery, signOut } = useAuth();
+  const { t } = useI18n();
+  const { session, loading, recovery } = useAuth();
   const [tab, setTab] = useState("dashboard");
   const [authView, setAuthView] = useState("landing"); // "landing" | "login"
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const userName = (user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User");
-  const userInitial = userName.charAt(0).toUpperCase();
 
   const navItems = [
     { id: "dashboard", label: t("nav.dashboard"), Icon: LayoutDashboard },
@@ -73,61 +178,6 @@ export default function App() {
     </div>
   );
 
-  // Language dropdown. Self-contained (own open-state + ref) so it can render
-  // in both the desktop top bar and the mobile top bar without conflicts.
-  const LANGS = [
-    { code: "es", label: "Español", short: "ES" },
-    { code: "en", label: "English", short: "EN" },
-  ];
-  const LangSelect = () => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef();
-    useEffect(() => {
-      if (!open) return;
-      const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-      document.addEventListener("mousedown", handler);
-      return () => document.removeEventListener("mousedown", handler);
-    }, [open]);
-    const current = LANGS.find((l) => l.code === lang) || LANGS[0];
-    return (
-      <div className="relative" ref={ref}>
-        <button onClick={() => setOpen((v) => !v)} title={t("prefs.language")}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-          <Globe size={14} className="shrink-0" />
-          <span className="text-xs font-semibold">{current.short}</span>
-          <ChevronDown size={13} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
-        </button>
-        <AnimatePresence>
-          {open && (
-            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
-              className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
-              {LANGS.map((l) => (
-                <button key={l.code} onClick={() => { setLang(l.code); setOpen(false); }}
-                  className={cn("w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium transition-colors",
-                    lang === l.code
-                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30"
-                      : "text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800"
-                  )}>
-                  <span>{l.label}</span>
-                  {lang === l.code && <Check size={14} className="shrink-0" />}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
-
-  // Theme toggle button, shared by the desktop and mobile bars.
-  const ThemeToggle = () => (
-    <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      title={theme === "dark" ? t("theme.light") : t("theme.dark")}
-      className="flex items-center justify-center rounded-lg border border-slate-200 dark:border-zinc-800 px-2.5 py-1.5 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-      {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-    </button>
-  );
-
   // Language + theme controls for the desktop top bar.
   const langThemeControls = (
     <div className="flex items-center gap-2">
@@ -135,50 +185,6 @@ export default function App() {
       <ThemeToggle />
     </div>
   );
-
-  // Avatar + name + chevron, with a dropdown holding sign out.
-  // Self-contained so it can render in both the desktop and mobile bars
-  // without sharing open-state or a single ref between instances.
-  const UserMenu = () => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef();
-    useEffect(() => {
-      if (!open) return;
-      const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-      document.addEventListener("mousedown", handler);
-      return () => document.removeEventListener("mousedown", handler);
-    }, [open]);
-    return (
-      <div className="relative" ref={ref}>
-        <button onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
-          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white text-xs font-bold shrink-0">{userInitial}</span>
-          <span className="hidden sm:block max-w-[140px] truncate text-sm text-slate-700 dark:text-zinc-200">{userName}</span>
-          <ChevronDown size={14} className={cn("text-slate-400 dark:text-zinc-500 transition-transform", open && "rotate-180")} />
-        </button>
-        <AnimatePresence>
-          {open && (
-            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
-              className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl py-1.5 z-50">
-              <div className="px-3 py-2 border-b border-slate-100 dark:border-zinc-800">
-                <div className="text-sm text-slate-700 dark:text-zinc-200 truncate">{userName}</div>
-                {user?.email && <div className="text-[11px] text-slate-400 dark:text-zinc-500 truncate">{user.email}</div>}
-              </div>
-              <button onClick={() => { setOpen(false); setTab("profile"); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
-                <UserRound size={14} className="shrink-0" /> {t("nav.profile")}
-              </button>
-              <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
-              <button onClick={() => { setOpen(false); signOut(); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
-                <LogOut size={14} className="shrink-0" /> {t("auth.signOut")}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  };
 
   if (loading) {
     return (
@@ -216,7 +222,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <LangSelect />
           <ThemeToggle />
-          <UserMenu />
+          <UserMenu onProfile={() => setTab("profile")} />
         </div>
       </div>
 
@@ -255,7 +261,7 @@ export default function App() {
         <header className="hidden md:flex items-center justify-end gap-3 h-14 shrink-0 px-6 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800">
           {langThemeControls}
           <div className="w-px h-6 bg-slate-200 dark:bg-zinc-800" />
-          <UserMenu />
+          <UserMenu onProfile={() => setTab("profile")} />
         </header>
 
         {/* Main content */}

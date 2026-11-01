@@ -73,7 +73,7 @@ describe("Splitter", () => {
   });
 });
 
-const isCopy = (url, init) => url.includes("/splitter/items/copy");
+const isCopy = (url) => url.includes("/splitter/items/copy");
 const copyBodies = (fetchMock) =>
   callsMatching(fetchMock, isCopy).map(([, init]) => JSON.parse(init.body));
 const isListItems = (url, init) =>

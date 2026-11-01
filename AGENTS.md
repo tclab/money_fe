@@ -2,7 +2,8 @@
 
 React + Vite frontend for the money app. Data lives in the backend
 (`../money_be`), reached only through `src/api.js`. Scripts are in
-`package.json`; `npm test` runs the suite once.
+`package.json`; `npm test` runs the suite once, `npm run lint` is the gate.
+Run `npm run hooks` once per clone to enable the lint pre-commit hook.
 
 Env vars are in `.env.example`. `VITE_API_URL` falls back to
 `http://localhost:8000`. To run the whole stack locally, follow
@@ -24,6 +25,8 @@ Three things bite when testing a feature component:
 - **Route the fetch mock by URL.** Features fire several requests on mount, so
   one blanket `mockResolvedValue` makes tests pass for the wrong reason. Use
   `installFetchMock({ "POST /debts": {...} })`; unmatched requests throw.
+
+Every feature gets three tests: happy path, edge case, failure.
 
 Assert the request a component sends, not just what renders. Query by role and
 text; never assert on Tailwind class strings.
