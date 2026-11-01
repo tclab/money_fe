@@ -225,8 +225,18 @@ const BrandMark = () => (
   </span>
 );
 
+function LangPill() {
+  const { lang, setLang } = useI18n();
+  return (
+    <div className="langpill" role="group" aria-label="Language">
+      <button className={lang === "es" ? "on" : undefined} onClick={() => setLang("es")}>ES</button>
+      <button className={lang === "en" ? "on" : undefined} onClick={() => setLang("en")}>EN</button>
+    </div>
+  );
+}
+
 export default function Landing({ onGetStarted }) {
-  const { lang, setLang, theme, setTheme } = useI18n();
+  const { lang, theme, setTheme } = useI18n();
   const rootRef = useRef(null);
   const L = (en, es) => (lang === "es" ? es : en);
 
@@ -295,13 +305,6 @@ export default function Landing({ onGetStarted }) {
     mio.observe(mock);
     return () => mio.disconnect();
   }, []);
-
-  const LangPill = () => (
-    <div className="langpill" role="group" aria-label="Language">
-      <button className={lang === "es" ? "on" : undefined} onClick={() => setLang("es")}>ES</button>
-      <button className={lang === "en" ? "on" : undefined} onClick={() => setLang("en")}>EN</button>
-    </div>
-  );
 
   return (
     <div className="fintra-landing" ref={rootRef}>

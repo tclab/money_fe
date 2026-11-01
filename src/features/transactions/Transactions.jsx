@@ -38,8 +38,8 @@ export default function Transactions() {
 
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Which month last finished loading; see useResource.
+  const [loaded, setLoaded] = useState({ key: null, error: null });
   const [viewDate, setViewDate] = useState(today);
   const [editing, setEditing] = useState(null); // null | full row draft
   const [pendingDelete, setPendingDelete] = useState(null); // null | { id, note, amount, category_id }
@@ -52,22 +52,24 @@ export default function Transactions() {
   const [draft, setDraft] = useState(emptyDraft);
 
   const monthKey = toMonthKey(viewDate);
+  const loading = loaded.key !== monthKey;
+  const error = loading ? null : loaded.error;
 
   useEffect(() => {
-    setLoading(true);
-    // Clear the previous month's failure, else one bad load sticks forever.
-    setError(null);
+    // A slower answer for an earlier month must not overwrite the current one.
+    let stale = false;
     Promise.all([
       fetchCategories("transaction"),
       fetchTransactions(monthKey),
     ]).then(([cats, txs]) => {
+      if (stale) return;
       setCategories(cats);
       setTransactions(txs);
-      setLoading(false);
+      setLoaded({ key: monthKey, error: null });
     }).catch((e) => {
-      setError(errorKey(e));
-      setLoading(false);
+      if (!stale) setLoaded({ key: monthKey, error: errorKey(e) });
     });
+    return () => { stale = true; };
   }, [monthKey]);
 
   const catName = (id) => categories.find((c) => c.id === id)?.name ?? t("transactions.uncategorized");

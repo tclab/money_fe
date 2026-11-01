@@ -24,7 +24,7 @@ export default function DebtKiller() {
   const [debts, setDebts] = useState([]);
   const [availablePersons, setAvailablePersons] = useState([]);
   const [debtPersonFilter, setDebtPersonFilter] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const reportRef = useRef(null);
   const [reportTarget, setReportTarget] = useState(null);
   const [reportStatus, setReportStatus] = useState("idle");
@@ -70,7 +70,6 @@ export default function DebtKiller() {
   }
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([fetchDebts(), fetchPeople()])
       .then(([d, p]) => {
         setDebts(d);
@@ -82,7 +81,6 @@ export default function DebtKiller() {
   }, []);
 
   useEffect(() => {
-    setDebtPersonFilter(null);
     fetchDebts().then(all => applyMeta(all)).catch(showError);
   }, [debtTab]);
 
@@ -498,7 +496,7 @@ export default function DebtKiller() {
           { key: "i_owe",      label: t("debt.iOwe"),     count: counts.i_owe },
           { key: "archived",   label: t("debt.archived"), count: counts.archived },
         ].map(tab => (
-          <button key={tab.key} onClick={() => setDebtTab(tab.key)}
+          <button key={tab.key} onClick={() => { setDebtTab(tab.key); setDebtPersonFilter(null); }}
             className={cn(
               "flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors",
               debtTab === tab.key

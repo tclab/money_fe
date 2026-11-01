@@ -3,25 +3,25 @@ import { errorKey } from "./apiError";
 
 export function useResource(fetcher, deps = []) {
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Which deps last finished loading. A new key reads as loading with no error,
+  // so one bad load never sticks.
+  const key = JSON.stringify(deps);
+  const [loaded, setLoaded] = useState({ key: null, error: null });
+  const loading = loaded.key !== key;
+  const error = loading ? null : loaded.error;
 
   useEffect(() => {
-    setLoading(true);
-    // Clear the previous failure, else one bad load sticks forever.
-    setError(null);
     let stale = false;
     fetcher().then((data) => {
       if (stale) return;
       setRows(data);
-      setLoading(false);
+      setLoaded({ key, error: null });
     }).catch((e) => {
       if (stale) return;
-      setError(errorKey(e));
-      setLoading(false);
+      setLoaded({ key, error: errorKey(e) });
     });
     return () => { stale = true; };
-  }, deps);
+  }, [key]);
 
   // Optimistic: apply `apply` now; if `save` rejects, run `undo` on the current rows
   // and rethrow. Without `undo` the optimistic change stays (delete, create, reorder).

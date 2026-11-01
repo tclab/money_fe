@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat | grep -q '\"stop_hook_active\": *true' && exit 0; \"$CLAUDE_PROJECT_DIR\"/scripts/agent-check.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

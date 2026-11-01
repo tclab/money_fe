@@ -16,24 +16,27 @@ const prevMonth = (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1);
 export default function CopyMonthModal({ targetDate, onClose, onCopied }) {
   const { t, lang } = useI18n();
   const [sourceDate, setSourceDate] = useState(() => prevMonth(targetDate));
-  const [preview, setPreview] = useState(null);
-  const [error, setError] = useState(null);
+  // Dry-run result tagged with the pick it answers. A new pick reads as empty.
+  const [result, setResult] = useState({ key: null, preview: null, error: null });
   const [copying, setCopying] = useState(false);
 
   const sourceKey = toMonthKey(sourceDate);
   const targetKey = toMonthKey(targetDate);
   const sameMonth = sourceKey === targetKey;
   const monthLocale = lang === "en" ? "en-US" : "es-ES";
+  const pickKey = `${sourceKey}>${targetKey}`;
+  const current = result.key === pickKey ? result : { preview: null, error: null };
+  const { preview, error } = current;
+  const setError = (e) => setResult({ key: pickKey, preview, error: e });
 
   useEffect(() => {
-    setPreview(null);
-    setError(null);
     if (sameMonth) return;
+    const key = `${sourceKey}>${targetKey}`;
     // A slower answer for an earlier pick must not overwrite the current one.
     let stale = false;
     copySplitterMonth(sourceKey, targetKey, true)
-      .then((counts) => { if (!stale) setPreview(counts); })
-      .catch((e) => { if (!stale) { reportError(e); setError(e); } });
+      .then((counts) => { if (!stale) setResult({ key, preview: counts, error: null }); })
+      .catch((e) => { if (!stale) { reportError(e); setResult({ key, preview: null, error: e }); } });
     return () => { stale = true; };
   }, [sourceKey, targetKey, sameMonth]);
 
