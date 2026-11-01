@@ -87,7 +87,7 @@ describe("DebtKiller", () => {
     expect(requestBody(fetchMock, isPostDebt).person_id).toBe("p2");
   });
 
-  // Deliberate per MON-RDS-009: the form stays open until the write lands, so a
+  // Deliberate per redesign ticket 09: the form stays open until the write lands, so a
   // failure leaves the typed input recoverable.
   it("keeps the form and its input when the write fails", async () => {
     setupRoutes({ "POST /debts": failWith(500) });

@@ -1,35 +1,12 @@
 # AGENTS.md
 
-## Project Overview
+React + Vite frontend for the money app. Data lives in the backend
+(`../money_be`), reached only through `src/api.js`. Scripts are in
+`package.json`; `npm test` runs the suite once.
 
-**money-app** is a React/Vite financial management web application with three main features:
-1. **Expenses** — Monthly expense management grouped by user-defined categories, with per-month payment status and amounts
-2. **Splitter** — Splits income and expenses across people by share, with per-person totals
-3. **DebtKiller** — Debt and loan tracking with payments, payment distribution, and progress donuts
-
-Data persists in the backend (Supabase) via the REST client in `src/api.js` (base URL `http://localhost:8000`). The backend must be running for the app to load data. localStorage is used only for UI preferences (language and theme), not financial data.
-
-## Common Commands
-
-```bash
-# Start development server (Vite dev server on http://localhost:5173)
-npm run dev
-
-# Build for production (outputs to /dist)
-npm run build
-
-# Preview production build locally
-npm run preview
-
-# Install dependencies
-npm install
-
-# Run the test suite headless (Vitest + React Testing Library)
-npm test
-
-# Watch mode
-npm run test:watch
-```
+Env vars are in `.env.example`. `VITE_API_URL` falls back to
+`http://localhost:8000`. To run the whole stack locally, follow
+`../docs/run-local.md`.
 
 ## Testing
 
@@ -49,103 +26,63 @@ Three things bite when testing a feature component:
   `installFetchMock({ "POST /debts": {...} })`; unmatched requests throw.
 
 Assert the request a component sends, not just what renders. Query by role and
-text; never assert on Tailwind class strings. `jsdom` is pinned to `^26` because
-v27 fails to load on Node 20.18 (`ERR_REQUIRE_ESM` out of `@asamuzakjp/css-color`).
+text; never assert on Tailwind class strings.
 
-## Project Structure
+jsdom 30 requires Node `^22.22.2 || ^24.15.0 || >=26`. On an older Node, npm
+warns `EBADENGINE`.
 
-```
-src/
-├── App.jsx                    # App shell: sidebar nav, tab switching, preferences modal
-├── main.jsx                   # React entry point (wraps app in I18nProvider)
-├── index.css                  # Global styles + Tailwind imports
-├── api.js                     # Backend REST client (all fetch calls live here)
-├── storage.js                 # Thin window.storage wrapper over localStorage (prefs only)
-├── features/
-│   ├── expenses/Expenses.jsx      # Expenses config over CategorizedPage (~47 lines)
-│   ├── income/Income.jsx          # Income config over CategorizedPage (~47 lines)
-│   ├── splitter/Splitter.jsx      # Splitter feature (~802 lines)
-│   └── debtKiller/DebtKiller.jsx  # DebtKiller feature (~770 lines)
-├── components/
-│   ├── Modal.jsx              # Generic modal dialog
-│   ├── CategorizedPage.jsx    # Shared monthly page for Expenses/Income: header, modals, writes
-│   ├── CategorizedList.jsx    # Shared category table: sections, collapse, drag-reorder, status
-│   ├── Btn.jsx                # Button with variants/sizes
-│   ├── StatusPicker.jsx       # Expense status selector + AMOUNT_CLS export
-│   └── MonthYearPicker.jsx    # Month/year navigation picker
-├── i18n/
-│   ├── index.jsx             # I18nProvider + useI18n hook (lang, theme, t, locale, currency)
-│   ├── es.json               # Spanish strings (default)
-│   └── en.json               # English strings
-├── lib/
-│   ├── debtAllocate.js       # Pure debt payment waterfall, mirrors backend allocate
-│   ├── splitterAllocate.js   # Pure splitter math: totals, pool, per-person amounts
-│   ├── useResource.js        # Fetch lifecycle + optimistic mutate/patch with targeted undo
-│   └── utils.js              # cn(), catColor(), toMonthKey(), toDateKey(), fmt(), fmtMonth()
-└── test/                      # Test-only helpers; never named *.test.js
-    ├── setup.js               # Loads @testing-library/jest-dom/vitest
-    ├── renderWithProviders.jsx # Wraps a feature in I18nProvider + ToastProvider
-    ├── mockSupabase.js        # supabaseMock() factory for vi.mock
-    └── mockFetch.js           # installFetchMock(routes), failWith, requestBody
-```
+## App shell and auth
 
-## Architecture
+`main.jsx` nests `AuthProvider` > `I18nProvider` > `ToastProvider` >
+`ErrorBoundary` > `App`. Without a session, `App.jsx` shows the landing page,
+then login. A password-recovery link shows `ResetPassword`. With a session it
+renders the tab named in `tab` state, one feature component from
+`src/features/` per tab. Language and theme controls sit in the `App.jsx` top
+bar. Profile, with display name and password, opens from the user menu.
 
-### App Shell (App.jsx)
+## API client
 
-`App.jsx` is the shell only (~177 lines): sidebar navigation, collapsible/mobile drawer, tab switching between the three features, and the preferences modal (language + theme). Each tab renders a feature component from `src/features/`. Feature components are independent and self-contained; each fetches its own data from `api.js` on mount.
+- `authFetch` in `api.js` attaches the Supabase access token as a Bearer header.
+  A 401 signs the user out, which drops the app back to the login screen.
+- Every non-ok response throws an `ApiError` (`src/lib/apiError.js`) carrying
+  the backend's error `code`. Callers never check `res.ok`.
+- Show users `t(errorKey(err))`, never the server `message`. The message is
+  English server prose.
+- `mapExpense` and `mapIncome` rename backend `expense`/`income` and `value` to
+  `name` and `amount`.
+- List endpoints wrap the rows in an object, e.g. `{ expenses: [...] }`. The
+  fetchers unwrap them.
+- `src/lib/reportError.js` is the single error-reporting call site.
 
-### API Client (api.js)
+## Expenses and income
 
-All backend calls go through `src/api.js`. Base URL is hardcoded to `http://localhost:8000`. Notable conventions:
-- `mapExpense()` maps backend fields (`expense`, `value`) to frontend fields (`name`, `amount`).
-- Most list endpoints return `{ <plural>: [...] }`; the client unwraps with `data.x ?? data`.
-- `USER_ID = "default"` is sent as a query param or body field for user-scoped resources.
-- Functions cover CRUD + reorder for categories/expenses, expense-status upsert, splitter items, people (with feature association), and debts/payments (including `distributePayment`).
+Both are thin configs over `src/components/CategorizedPage.jsx`, which holds
+the shared page: month navigation, modals and writes.
 
-### Feature components
+- Data is keyed by month, `toMonthKey()` (`YYYY-MM`). Status and amount are
+  stored per month.
+- Months before the current one are read-only and load soft-deleted categories
+  too. The current and future months are editable. The check is a plain string
+  compare on month keys.
+- Writes go through `useResource` (`src/lib/useResource.js`). Both writers
+  apply the change at once. On a failed save, `patch` restores the touched
+  fields. `mutate` rolls back only when given an `undo`. Without one, the
+  optimistic change stays, as with delete, create and reorder.
 
-- **Expenses** — categories + expenses fetched per month (`monthKey`). Drag-and-drop reorder via `@hello-pangea/dnd`. Per-month status/amount via `upsertExpenseStatus`. Past months are read-only. Inline editing of names, amounts, status, and categories.
-- **Splitter** — income/expense rows split across people by share. Uses `fetchPeople(feature)` for the splitter feature. Camera capture to PNG.
-- **DebtKiller** — debts and loans with payment history, progress donuts (`LoanDonut`), and `distributePayment` to spread one payment across active debts. Person filtering.
+## Styling
 
-### Data Storage
+Tailwind, with `darkMode: "class"`. Use the semantic tokens in
+`src/lib/tokens.js` instead of hardcoding colors or type sizes. Color encodes
+state, not which page you are on.
 
-- Financial data lives in the backend (Supabase), accessed only through `api.js`.
-- `storage.js` is a thin async wrapper over `localStorage`, used for UI state only.
-- UI preferences persist directly to localStorage: `app-language` and `app-theme` (set in `i18n/index.jsx`).
+The PNG export in Splitter and DebtKiller loads `html2canvas` from cdnjs at
+click time. It is not an npm dependency.
 
-### Styling
+## i18n and theme
 
-- **Framework:** Tailwind CSS with PostCSS
-- **Color scheme:** Greens (paid/income), reds (unpaid/outflow), blues (actions), grays (neutral)
-- **Responsive:** Mobile-first with breakpoint-specific sidebar behavior (hidden on mobile, collapsible on desktop)
-
-## Key Design Patterns
-
-1. **Backend-Backed State** — Features fetch from `api.js` on mount and re-fetch after mutations; no client-side master store
-2. **Month-as-Key** — Expenses indexed by `toMonthKey()` (YYYY-MM); status/amount stored per month
-3. **Read-Only Past Months** — Current month (derived from `new Date()`) is editable; others are read-only
-4. **Drag-to-Reorder** — Drag within/between categories via `@hello-pangea/dnd`; persisted with `reorderExpenses`/`reorderCategories`
-5. **Self-Contained Features** — Each feature owns its data fetching, loading/error state, and modals
-
-## i18n & Theme
-
-- **`I18nProvider`** wraps the app in `main.jsx`; consume via `useI18n()` hook
-- **`t(key)`** — looks up translation key; falls back to Spanish, then the key itself
-- **Language toggle** — `es` (default, COP) / `en` (USD); persisted to `localStorage["app-language"]`
-- **Theme toggle** — `light` / `dark`; persisted to `localStorage["app-theme"]`; applied via `document.documentElement.classList` (`dark` class for Tailwind dark mode)
-- **`locale` / `currency`** — derived from `lang` and passed through context for use in `Intl.NumberFormat`
-- Add new strings to both `es.json` and `en.json` when adding UI text
-
-## Locale & Formatting
-
-- **Currency:** Colombian Pesos (COP, no decimals) in Spanish mode; USD in English mode
-- **Month Display:** Long format in Spanish (e.g., "MARZO 2025")
-
-## Notable Implementation Details
-
-- **Backend required** — Features show loading/error state if `http://localhost:8000` is unreachable
-- **Field mapping** — `api.js` `mapExpense()` translates backend `expense`/`value` to frontend `name`/`amount`
-- **Date comparison for read-only mode** — uses `toMonthKey()` string comparison (works because format is YYYY-MM)
-- **PNG capture** — Splitter and DebtKiller can export a view as a PNG image
+- `useI18n()` gives `lang`, `t`, `locale`, `currency` and `theme`.
+- `t(key)` falls back to Spanish, then to the key itself.
+- `es` is the default, with COP. `en` uses USD.
+- Add every new string to both `es.json` and `en.json`.
+- Language and theme persist to `localStorage["app-language"]` and
+  `localStorage["app-theme"]`. Financial data never touches localStorage.
