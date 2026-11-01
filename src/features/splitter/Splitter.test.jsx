@@ -193,3 +193,44 @@ describe("Splitter month copy", () => {
     expect(screen.getByRole("heading", { name: "Copy from month" })).toBeInTheDocument();
   });
 });
+
+// Hand-worked: pool = 1000 + 500 - 300 = 1200. Shares 60/40 give 720 / 480.
+// Ana's 100 discount comes off her amount only, not the pool: 720 - 100 = 620.
+const SPLIT_ITEMS = [
+  { id: "i1", type: "income", label: "Salary", value: 1000, position: 0 },
+  { id: "i2", type: "income", label: "Bonus", value: 500, position: 1 },
+  { id: "e1", type: "expense", label: "Rent", value: 300, position: 0 },
+  { id: "d1", type: "discount", label: "Gym", value: 100, position: 0, person_id: "p1" },
+];
+const SPLIT_PEOPLE = [
+  { id: "p1", name: "Ana", color: "#94a3b8", share: 60 },
+  { id: "p2", name: "Bob", color: "#3b82f6", share: 40 },
+];
+
+// The board and the hidden report-image panel both render the split, so every
+// copy must agree. Each label sits beside its value in the same parent.
+const expectBeside = (label, value) => {
+  const labels = screen.getAllByText(label);
+  expect(labels).toHaveLength(2);
+  for (const el of labels) expect(within(el.parentElement).getByText(value)).toBeInTheDocument();
+};
+
+describe("Splitter allocation", () => {
+  afterEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("shows the pool and each person's share and amount", async () => {
+    installFetchMock({
+      "/splitter/items": { splitters: SPLIT_ITEMS },
+      "/people": { people: SPLIT_PEOPLE },
+    });
+    renderWithProviders(<Splitter />);
+
+    await screen.findAllByText("People · 2");
+    expectBeside("People · 2", "$1,200");
+    expectBeside("60% of pool", "$620");
+    expectBeside("40% of pool", "$480");
+  });
+});

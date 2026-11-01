@@ -80,6 +80,8 @@ src/
 │   ├── es.json               # Spanish strings (default)
 │   └── en.json               # English strings
 ├── lib/
+│   ├── debtAllocate.js       # Pure debt payment waterfall, mirrors backend allocate
+│   ├── splitterAllocate.js   # Pure splitter math: totals, pool, per-person amounts
 │   ├── useResource.js        # Fetch lifecycle + optimistic mutate/patch with targeted undo
 │   └── utils.js              # cn(), catColor(), toMonthKey(), toDateKey(), fmt(), fmtMonth()
 └── test/                      # Test-only helpers; never named *.test.js
