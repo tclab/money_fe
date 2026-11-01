@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n/index.jsx";
 import { useToast } from "../../components/Toast.jsx";
 import { cn, toMonthKey, fmt, fmtMonth } from "../../lib/utils.js";
 import { TYPE } from "../../lib/tokens.js";
+import { splitterAllocate } from "../../lib/splitterAllocate.js";
 import {
   fetchSplitters, createSplitter, updateSplitter, deleteSplitter,
   fetchPeople, createPerson, updatePerson,
@@ -124,21 +125,13 @@ export default function Splitter() {
   const salidas = items.filter((i) => i.type === "expense");
   const descuentos = items.filter((i) => i.type === "discount");
 
-  const totalEntradas = entradas.reduce((s, e) => s + (e.value || 0), 0);
-  const totalSalidas = salidas.reduce((s, e) => s + (e.value || 0), 0);
-  const totalDesc = descuentos.reduce((s, e) => s + (e.value || 0), 0);
-  const neto = totalEntradas - totalSalidas;
-  const pool = neto;
-  const totalShares = people.reduce((s, p) => s + (p.share || 0), 0);
-
-  const perPerson = people.map((p) => {
-    const pct = totalShares > 0 ? p.share / totalShares : 0;
-    const personDiscounts = descuentos
-      .filter((d) => d.person_id === p.id)
-      .reduce((sum, d) => sum + (d.value || 0), 0);
-    const initials = p.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??";
-    return { ...p, pct, amount: (pool * pct) - personDiscounts, discounts: personDiscounts, initials };
-  });
+  const split = splitterAllocate(items, people);
+  const { totalEntradas, totalSalidas, totalDesc, pool } = split;
+  const neto = pool;
+  const perPerson = split.perPerson.map((p) => ({
+    ...p,
+    initials: p.name.trim().split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "??",
+  }));
 
   const unlinkedPeople = allPeople.filter((p) => !people.find((q) => q.id === p.id));
 
