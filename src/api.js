@@ -120,8 +120,6 @@ export async function updateCategory(kind, id, name) {
 export async function updateExpense(id, patch) {
   const body = {};
   if (patch.expense !== undefined) body.expense = patch.expense;
-  if (patch.value !== undefined) body.value = patch.value;
-  if (patch.status !== undefined) body.status = patch.status;
   if (patch.category_id !== undefined) body.category_id = patch.category_id;
   const res = await authFetch(`/expenses/${id}`, { method: "PUT", body });
   return mapExpense(await res.json());
@@ -149,8 +147,6 @@ export async function createIncome(categoryId, name, amount) {
 export async function updateIncome(id, patch) {
   const body = {};
   if (patch.income !== undefined) body.income = patch.income;
-  if (patch.value !== undefined) body.value = patch.value;
-  if (patch.status !== undefined) body.status = patch.status;
   if (patch.category_id !== undefined) body.category_id = patch.category_id;
   const res = await authFetch(`/income/${id}`, { method: "PUT", body });
   return mapIncome(await res.json());

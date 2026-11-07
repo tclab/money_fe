@@ -11,7 +11,7 @@ vi.mock("./supabaseClient.js", () => ({
   },
 }));
 
-const { fetchExpenses, fetchIncome, deleteExpense } = await import("./api.js");
+const { fetchExpenses, fetchIncome, deleteExpense, updateExpense, updateIncome } = await import("./api.js");
 
 function respond({ status = 200, body, ok }) {
   return {
@@ -157,5 +157,31 @@ describe("mapIncome", () => {
     );
     const [row] = await fetchIncome();
     expect(row.status).toBe("received");
+  });
+});
+
+// The backend update schemas drop value and status, so the client must not send them.
+// Amount and status go through the per-month status upserts instead.
+describe("update payloads", () => {
+  beforeEach(() => {
+    globalThis.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const sentBody = () => JSON.parse(fetch.mock.calls[0][1].body);
+
+  it("updateExpense forwards only fields the backend accepts", async () => {
+    fetch.mockResolvedValue(respond({ body: { id: "1", expense: "Rent", value: 100 } }));
+    await updateExpense("1", { expense: "Rent", category_id: "c1", value: 5, status: "paid" });
+    expect(sentBody()).toEqual({ expense: "Rent", category_id: "c1" });
+  });
+
+  it("updateIncome forwards only fields the backend accepts", async () => {
+    fetch.mockResolvedValue(respond({ body: { id: "2", income: "Salary", value: 500 } }));
+    await updateIncome("2", { income: "Salary", category_id: "c2", value: 5, status: "received" });
+    expect(sentBody()).toEqual({ income: "Salary", category_id: "c2" });
   });
 });
